@@ -7,7 +7,7 @@ FUNCTION(PREPEND var prefix)
       LIST(APPEND listVar "${prefix}/${f}")
    ENDFOREACH(f)
    SET(${var} "${listVar}" PARENT_SCOPE)
-ENDFUNCTION(PREPEND)
+ENDFUNCTION()
 
 cmake_minimum_required(VERSION 3.0)
 

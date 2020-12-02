@@ -1,3 +1,3 @@
-file(GLOB ifsaux_SRC "*.F90" CONFIGURE_DEPENDS)
+file(GLOB ifsaux_SRC CONFIGURE_DEPENDS "*.F90")
 
 target_sources(ifsaux PUBLIC ${ifsaux_SRC})

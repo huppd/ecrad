@@ -1,4 +1,4 @@
-file(GLOB radiation_SRC "*.F90" CONFIGURE_DEPENDS)
+file(GLOB radiation_SRC CONFIGURE_DEPENDS "*.F90")
 
 target_sources(radiation PUBLIC ${radiation_SRC})
 
