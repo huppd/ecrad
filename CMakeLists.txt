@@ -11,7 +11,26 @@ ENDFUNCTION(PREPEND)
 
 cmake_minimum_required(VERSION 3.0)
 
-project("ECRAD - ECMWF" VERSION 1.4.0)
+set(DEFAULT_BUILD_TYPE "Release")
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  message(STATUS "Setting build type to '${DEFAULT_BUILD_TYPE}' as none was specified.")
+  set(CMAKE_BUILD_TYPE "${DEFAULT_BUILD_TYPE}" CACHE
+      STRING "Choose the type of build." FORCE)
+  # Set the possible values of build type for cmake-gui
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release")
+endif()
+
+IF(CMAKE_BUILD_TYPE MATCHES Debug)
+  message("Debug build")
+  set(BUILD_TYPE "Debug")
+ELSEIF(CMAKE_BUILD_TYPE MATCHES Release)
+  message("Release build")
+  set(BUILD_TYPE "Release")
+ELSE()
+  message( FATAL_ERROR "Unsupported build type ${CMAKE_BUILD_TYPE}")
+ENDIF()
+
+project("ECRAD-MCH ${BUILD_TYPE}" VERSION 1.4.0)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/module")
 
@@ -48,23 +67,6 @@ set(Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/mod)
 
 set(CMAKE_Fortran_FLAGS_RELEASE "${FC_RELEASE_WARNFLAGS} ${FC_BASIC_FLAGS} ${FC_FPPFLAGS} ${FC_RELEASE_OPTFLAGS} ${FC_RELEASE_DEBUGFLAGS} -I ${Fortran_MODULE_DIRECTORY}")
 set(CMAKE_Fortran_FLAGS_DEBUG "${FC_DEBUG_WARNFLAGS} ${FC_BASIC_FLAGS} ${FC_FPPFLAGS} ${FC_DEBUG_OPTFLAGS} ${FC_DEBUG_DEBUGFLAGS} -I ${Fortran_MODULE_DIRECTORY}")
-
-set(DEFAULT_BUILD_TYPE "Release")
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  message(STATUS "Setting build type to '${DEFAULT_BUILD_TYPE}' as none was specified.")
-  set(CMAKE_BUILD_TYPE "${DEFAULT_BUILD_TYPE}" CACHE
-      STRING "Choose the type of build." FORCE)
-  # Set the possible values of build type for cmake-gui
-  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release")
-endif()
-
-IF(CMAKE_BUILD_TYPE MATCHES Debug)
-  message("Debug build")
-ELSEIF(CMAKE_BUILD_TYPE MATCHES Release)
-  message("Release build")
-ELSE()
-  message( FATAL_ERROR "Unsupported build type ${CMAKE_BUILD_TYPE}")
-ENDIF()
 
 if(USE_OPENMP)
   set(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE} ${FC_OMPFLAG}")
