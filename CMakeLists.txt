@@ -76,16 +76,6 @@ include_directories(${CMAKE_SOURCE_DIR}/include ${NETCDF_INCLUDES})
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-message(
-  STATUS
-  "CMAKE_Fortran_FLAGS: ${CMAKE_Fortran_FLAGS_RELEASE}"
-)
-
-message(
-  STATUS
-  "CMAKE_Fortran_FLAGS: ${CMAKE_Fortran_FLAGS_DEBUG}"
-)
-
 add_library(ifsaux)
 set_target_properties( ifsaux PROPERTIES Fortran_MODULE_DIRECTORY "${Fortran_MODULE_DIRECTORY}" )
 add_subdirectory(ifsaux)
