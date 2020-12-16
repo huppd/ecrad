@@ -25,11 +25,40 @@
 ! 2) Name of a NetCDF file containing one or more atmospheric profiles
 ! 3) Name of output NetCDF file
 
+module ecrad_driver_routines
+use ISO_C_BINDING
+#ifdef XML_REPORT_SUPPORTED
+  use ecrad_driver_report
+#endif
+    implicit none
+    public
+contains
+  subroutine report_fail(report, error_message)
+    integer(C_INTPTR_T),value, intent(in) :: report
+    character(*), intent(in) :: error_message
+#ifdef XML_REPORT_SUPPORTED
+    if (report .NE. 0) then
+       call fail_current_report_step(report, error_message);
+       call save_report(report)
+       call delete_report(report)
+    endif
+    stop 'driver failed'
+#endif
+  end subroutine report_fail
+end module ecrad_driver_routines
+
+#ifdef XML_REPORT_SUPPORTED
+#define FAIL(error_message) call report_fail(report, error_message)
+#else
+#define FAIL(error_message) stop error_message
+#endif
+
 program ecrad_driver
 
   ! --------------------------------------------------------
   ! Section 1: Declarations
   ! --------------------------------------------------------
+  use ecrad_driver_routines
   use parkind1,                 only : jprb, jprd ! Working/double precision
 
   use radiation_io,             only : nulout
@@ -52,6 +81,11 @@ program ecrad_driver
   use ecrad_driver_config,      only : driver_config_type
   use ecrad_driver_read_input,  only : read_input
   use easy_netcdf
+
+  use ISO_C_BINDING
+#ifdef XML_REPORT_SUPPORTED
+  use ecrad_driver_report
+#endif
 
   implicit none
 
@@ -112,6 +146,8 @@ program ecrad_driver
   ! Section 2: Configure
   ! --------------------------------------------------------
 
+  integer(C_INTPTR_T) :: report = 0
+
   ! Check program called with correct number of arguments
   if (command_argument_count() < 3) then
     stop 'Usage: ecrad config.nam input_file.nc output_file.nc [output_surface_file.nc]'
@@ -157,11 +193,16 @@ program ecrad_driver
   ! --------------------------------------------------------
   ! Section 3: Read input data file
   ! --------------------------------------------------------
-
+#ifdef XML_REPORT_SUPPORTED
+  if (driver_config%generate_report) then
+    report = create_report(driver_config%report_file_path)
+    call start_report_step(report, "reading input data")
+  endif
+#endif
   ! Get NetCDF input file name
   call get_command_argument(2, file_name, status=istatus)
   if (istatus /= 0) then
-    stop 'Failed to read name of input NetCDF file as string of length < 512'
+    FAIL('Failed to read name of input NetCDF file as string of length < 512')
   end if
 
   ! Open the file and configure the way it is read
@@ -170,7 +211,7 @@ program ecrad_driver
   ! Get NetCDF output file name
   call get_command_argument(3, file_name, status=istatus)
   if (istatus /= 0) then
-    stop 'Failed to read name of output NetCDF file as string of length < 512'
+    FAIL('Failed to read name of output NetCDF file as string of length < 512')
   end if
 
   ! 2D arrays are assumed to be stored in the file with height varying
@@ -210,7 +251,7 @@ program ecrad_driver
          &  driver_config%istartcol, &
          &  ' to ', driver_config%iendcol, ') is out of the range in the data (1 to ', &
          &  ncol, ')'
-    stop 1
+    FAIL('column range is out of range')
   end if
   
   ! Store inputs
@@ -222,10 +263,19 @@ program ecrad_driver
          &                iverbose=driver_config%iverbose)
   end if
 
+#ifdef XML_REPORT_SUPPORTED
+  if (driver_config%generate_report) then
+    call finish_current_report_step(report, C_TRUE)
+  endif
+#endif
   ! --------------------------------------------------------
   ! Section 4: Call radiation scheme
   ! --------------------------------------------------------
-
+#ifdef XML_REPORT_SUPPORTED
+  if (driver_config%generate_report) then
+    call start_report_step(report, "allocating memory")
+  endif
+#endif
   ! Ensure the units of the gas mixing ratios are what is required
   ! by the gas absorption model
   call set_gas_units(config, gas)
@@ -262,10 +312,20 @@ program ecrad_driver
     write(nulout,'(a)')  'Performing radiative transfer calculations'
   end if
   
+#ifdef XML_REPORT_SUPPORTED
+  if (driver_config%generate_report) then
+    call finish_current_report_step(report, C_TRUE)
+  endif
+#endif
+
   ! Option of repeating calculation multiple time for more accurate
   ! profiling
   do jrepeat = 1,driver_config%nrepeat
-    
+#ifdef XML_REPORT_SUPPORTED
+  if (driver_config%generate_report) then
+    call start_report_step(report, "computation")
+  endif
+#endif
     if (driver_config%do_parallel) then
       ! Run radiation scheme over blocks of columns in parallel
       
@@ -327,13 +387,22 @@ program ecrad_driver
       end if
       
     end if
-    
+#ifdef XML_REPORT_SUPPORTED
+  if (driver_config%generate_report) then
+    call finish_current_report_step(report, C_TRUE)
+  endif
+#endif
   end do
 
   ! --------------------------------------------------------
   ! Section 5: Check and save output
   ! --------------------------------------------------------
 
+#ifdef XML_REPORT_SUPPORTED
+  if (driver_config%generate_report) then
+    call start_report_step(report, "writing output data")
+  endif
+#endif
   is_out_of_bounds = flux%out_of_physical_bounds(driver_config%istartcol, driver_config%iendcol)
 
   ! Store the fluxes in the output file
@@ -351,8 +420,20 @@ program ecrad_driver
     end if
   end if
 
+#ifdef XML_REPORT_SUPPORTED
+  if (driver_config%generate_report) then
+    call finish_current_report_step(report, C_TRUE)
+  endif
+#endif
+
   if (driver_config%iverbose >= 2) then
     write(nulout,'(a)') '------------------------------------------------------------------------------------'
   end if
+#ifdef XML_REPORT_SUPPORTED
+  if (report .NE. 0) then
+     call save_report(report)
+     call delete_report(report)
+  endif
+#endif
 
 end program ecrad_driver

@@ -35,6 +35,7 @@ project("ECRAD-MCH ${BUILD_TYPE}" VERSION 1.4.0)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/module")
 
 enable_language(Fortran)
+enable_language(CXX)
 
 set(NETCDF_F90 "YES")
 find_package(NetCDF REQUIRED)
@@ -51,6 +52,8 @@ option(SINGLE_PRECISION "Use single precision" OFF)
 option(USE_OPENMP "Use OpenMP" ON)
 option(USE_DR_HOOK "Use Dr Hook profiling system" OFF)
 
+option(USE_REPORT "Generate XML report" ON)
+
 #if("${NetCDF_VERSION}" VERSION_GREATER_EQUAL "4")
   set(FC_FPPFLAGS "${FC_FPPFLAGS} -DNC_NETCDF")
 #endif()
@@ -65,12 +68,17 @@ endif()
 
 set(Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/mod)
 
+if(USE_REPORT)
+set(FC_FPPFLAGS "${FC_FPPFLAGS} -DXML_REPORT_SUPPORTED")
+endif()
+
 set(CMAKE_Fortran_FLAGS_RELEASE "${FC_RELEASE_WARNFLAGS} ${FC_BASIC_FLAGS} ${FC_FPPFLAGS} ${FC_RELEASE_OPTFLAGS} ${FC_RELEASE_DEBUGFLAGS} -I ${Fortran_MODULE_DIRECTORY}")
 set(CMAKE_Fortran_FLAGS_DEBUG "${FC_DEBUG_WARNFLAGS} ${FC_BASIC_FLAGS} ${FC_FPPFLAGS} ${FC_DEBUG_OPTFLAGS} ${FC_DEBUG_DEBUGFLAGS} -I ${Fortran_MODULE_DIRECTORY}")
 
 if(USE_OPENMP)
-  set(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE} ${FC_OMPFLAG}")
-  set(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG} ${FC_OMPFLAG}")
+  find_package(OpenMP REQUIRED)
+  set(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE} ${OpenMP_Fortran_FLAGS}")
+  set(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG} ${OpenMP_Fortran_FLAGS}")
 endif()
 
 include_directories(${CMAKE_SOURCE_DIR}/include ${NETCDF_INCLUDES})
@@ -112,9 +120,59 @@ message(
   STATUS
   "NETCDF_LIBRARIES_F90: ${NETCDF_LIBRARIES_F90}"
 )
+
+if(USE_REPORT)
+add_library(driver_report_fortran_wrapper)
+set_target_properties( driver_report_fortran_wrapper PROPERTIES Fortran_MODULE_DIRECTORY "${Fortran_MODULE_DIRECTORY}" )
+add_library(driver_report_c)
+add_dependencies(driver_report_fortran_wrapper driver_report_c)
+
+add_subdirectory(driver_report)
+endif()
+
 add_executable(ecrad ${ecrad_SRC})
 set_target_properties( ecrad PROPERTIES Fortran_MODULE_DIRECTORY "${Fortran_MODULE_DIRECTORY}" )
 set(STATIC_LIBS ifsaux drhook ifsrrtm utilities radiation radsurf)
-target_link_libraries(ecrad PUBLIC ${STATIC_LIBS} ${NETCDF_LIBRARIES_F90})
+if(USE_REPORT)
+set(STATIC_LIBS ${STATIC_LIBS} driver_report_fortran_wrapper driver_report_c)
+endif()
+set(ECRAD_LIBS ${STATIC_LIBS} ${NETCDF_LIBRARIES_F90})
+
+if(USE_OPENMP)
+  set(ECRAD_LIBS ${ECRAD_LIBS} ${OpenMP_Fortran_LIBRARIES})
+endif()
+
+target_link_libraries(ecrad PUBLIC ${ECRAD_LIBS})
+
+option(UPDATE_DRIVER_REPORT_FORMAT "Update driver report format" ON)
+
+find_package(Python 3.6 REQUIRED)
+
+set(PY_VENV_DIR "${CMAKE_BINARY_DIR}/pyenv")
+
+add_custom_target(create-virtual-environment ALL)
+add_custom_command(
+ TARGET create-virtual-environment
+ COMMAND ${Python_EXECUTABLE} -m venv ${PY_VENV_DIR}
+ COMMENT "Creating python virtual environment"
+)
+
+if(UPDATE_DRIVER_REPORT_FORMAT)
+ # Regenerate serialization code for driver report
+ find_package(Python 3 REQUIRED)
+
+ add_custom_target(update_driver_report_format)
+ add_dependencies(update_driver_report_format create-virtual-environment)
+ set(DRV_REPORT_XSD ${CMAKE_SOURCE_DIR}/driver_report/driver_report.xsd)
+ set(DRV_REPORT_FORTRAN_SRC_DIR ${CMAKE_SOURCE_DIR}/driver_report)
+ set(DRV_REPORT_PY_SERIALIZATION ${CMAKE_SOURCE_DIR}/driver_report/report_serialization.py)
+ #set(DRV_REPORT_UPDATE_SCRIPT ${CMAKE_SOURCE_DIR}/driver/update_report_serialization.py)
+ add_custom_command(
+   TARGET update_driver_report_format
+   COMMAND ${PY_VENV_DIR}/bin/pip3 install --upgrade generateDS
+   COMMAND ${PY_VENV_DIR}/bin/python3 ${PY_VENV_DIR}/bin/generateDS.py -o ${DRV_REPORT_PY_SERIALIZATION} ${DRV_REPORT_XSD}
+   COMMENT "Generating report python serialization code"
+   )
+endif()
 
 
