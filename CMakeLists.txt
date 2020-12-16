@@ -151,9 +151,9 @@ find_package(Python 3.6 REQUIRED)
 
 set(PY_VENV_DIR "${CMAKE_BINARY_DIR}/pyenv")
 
-add_custom_target(create-virtual-environment ALL)
+add_custom_target(create-python-virtual-environment ALL)
 add_custom_command(
- TARGET create-virtual-environment
+ TARGET create-python-virtual-environment
  COMMAND ${Python_EXECUTABLE} -m venv ${PY_VENV_DIR}
  COMMENT "Creating python virtual environment"
 )
@@ -162,14 +162,14 @@ if(UPDATE_DRIVER_REPORT_FORMAT)
  # Regenerate serialization code for driver report
  find_package(Python 3 REQUIRED)
 
- add_custom_target(update-driver-repor-format)
- add_dependencies(update-driver-repor-format create-virtual-environment)
+ add_custom_target(update-driver-report-format)
+ add_dependencies(update-driver-report-format create-python-virtual-environment)
  set(DRV_REPORT_XSD ${CMAKE_SOURCE_DIR}/driver_report/driver_report.xsd)
  set(DRV_REPORT_FORTRAN_SRC_DIR ${CMAKE_SOURCE_DIR}/driver_report)
  set(DRV_REPORT_PY_SERIALIZATION ${CMAKE_SOURCE_DIR}/driver_report/report_serialization.py)
  #set(DRV_REPORT_UPDATE_SCRIPT ${CMAKE_SOURCE_DIR}/driver/update_report_serialization.py)
  add_custom_command(
-   TARGET update-driver-repor-format
+   TARGET update-driver-report-format
    COMMAND ${PY_VENV_DIR}/bin/pip3 install --upgrade generateDS
    COMMAND ${PY_VENV_DIR}/bin/python3 ${PY_VENV_DIR}/bin/generateDS.py -o ${DRV_REPORT_PY_SERIALIZATION} ${DRV_REPORT_XSD}
    COMMENT "Generating report python serialization code"
@@ -177,12 +177,23 @@ if(UPDATE_DRIVER_REPORT_FORMAT)
 endif()
 
 add_custom_target(reset-ci-tests)
-add_dependencies(reset-ci-tests ecrad)
+add_dependencies(reset-ci-tests ecrad create-python-virtual-environment)
 add_subdirectory(ci_tests)
 add_custom_command(
    TARGET reset-ci-tests
    COMMAND ${PY_VENV_DIR}/bin/python3 ${CI_TESTS_RUNTIME_DIR}/tests_runner.py --reset-ci-tests
    COMMENT "Generate reference results for ci testcases"
    )
+
+add_custom_target(run-ci-tests)
+add_dependencies(run-ci-tests ecrad create-python-virtual-environment)
+add_custom_command(
+ TARGET run-ci-tests
+ COMMAND ${PY_VENV_DIR}/bin/pip3 install xarray numpy netCDF4
+ COMMAND ${PY_VENV_DIR}/bin/python3 ${CI_TESTS_RUNTIME_DIR}/tests_runner.py --run-ci-tests
+ COMMENT "Running continious integration tests"
+)
+
+
 
 
