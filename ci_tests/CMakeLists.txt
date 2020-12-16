@@ -1,0 +1,12 @@
+set(CI_TESTS_RUNTIME_DIR ${CMAKE_BINARY_DIR}/ci_tests)
+set(CI_TESTS_RUNTIME_DIR ${CI_TESTS_RUNTIME_DIR} PARENT_SCOPE)
+set(ECRAD_CFG_DIR ${CMAKE_SOURCE_DIR}/data)
+set(ECRAD_CI_TESTS_DATA_DIR ${CMAKE_SOURCE_DIR}/ci_tests/data)
+
+file(MAKE_DIRECTORY ${CI_TESTS_RUNTIME_DIR})
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config.py.template
+               ${CI_TESTS_RUNTIME_DIR}/config.py)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/tests_runner.py ${CI_TESTS_RUNTIME_DIR}/tests_runner.py COPYONLY)
+
+
+

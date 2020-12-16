@@ -73,6 +73,7 @@ set(FC_FPPFLAGS "${FC_FPPFLAGS} -DXML_REPORT_SUPPORTED")
 endif()
 
 set(CMAKE_Fortran_FLAGS_RELEASE "${FC_RELEASE_WARNFLAGS} ${FC_BASIC_FLAGS} ${FC_FPPFLAGS} ${FC_RELEASE_OPTFLAGS} ${FC_RELEASE_DEBUGFLAGS} -I ${Fortran_MODULE_DIRECTORY}")
+set(CMAKE_Fortran_FLAGS_RELEASE "${FC_RELEASE_WARNFLAGS} ${FC_BASIC_FLAGS} ${FC_FPPFLAGS} ${FC_RELEASE_OPTFLAGS} ${FC_RELEASE_DEBUGFLAGS} -I ${Fortran_MODULE_DIRECTORY}")
 set(CMAKE_Fortran_FLAGS_DEBUG "${FC_DEBUG_WARNFLAGS} ${FC_BASIC_FLAGS} ${FC_FPPFLAGS} ${FC_DEBUG_OPTFLAGS} ${FC_DEBUG_DEBUGFLAGS} -I ${Fortran_MODULE_DIRECTORY}")
 
 if(USE_OPENMP)
@@ -161,18 +162,27 @@ if(UPDATE_DRIVER_REPORT_FORMAT)
  # Regenerate serialization code for driver report
  find_package(Python 3 REQUIRED)
 
- add_custom_target(update_driver_report_format)
- add_dependencies(update_driver_report_format create-virtual-environment)
+ add_custom_target(update-driver-repor-format)
+ add_dependencies(update-driver-repor-format create-virtual-environment)
  set(DRV_REPORT_XSD ${CMAKE_SOURCE_DIR}/driver_report/driver_report.xsd)
  set(DRV_REPORT_FORTRAN_SRC_DIR ${CMAKE_SOURCE_DIR}/driver_report)
  set(DRV_REPORT_PY_SERIALIZATION ${CMAKE_SOURCE_DIR}/driver_report/report_serialization.py)
  #set(DRV_REPORT_UPDATE_SCRIPT ${CMAKE_SOURCE_DIR}/driver/update_report_serialization.py)
  add_custom_command(
-   TARGET update_driver_report_format
+   TARGET update-driver-repor-format
    COMMAND ${PY_VENV_DIR}/bin/pip3 install --upgrade generateDS
    COMMAND ${PY_VENV_DIR}/bin/python3 ${PY_VENV_DIR}/bin/generateDS.py -o ${DRV_REPORT_PY_SERIALIZATION} ${DRV_REPORT_XSD}
    COMMENT "Generating report python serialization code"
    )
 endif()
+
+add_custom_target(reset-ci-tests)
+add_dependencies(reset-ci-tests ecrad)
+add_subdirectory(ci_tests)
+add_custom_command(
+   TARGET reset-ci-tests
+   COMMAND ${PY_VENV_DIR}/bin/python3 ${CI_TESTS_RUNTIME_DIR}/tests_runner.py --reset-ci-tests
+   COMMENT "Generate reference results for ci testcases"
+   )
 
 
