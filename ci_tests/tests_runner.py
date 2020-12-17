@@ -92,23 +92,27 @@ def run_testcase(name: str, solver_type: str, cfg: TestcaseCFG, data_multiplier:
         return True
 
 
-def test_case_ref_file_path(test_case_name: str, solver_type: str):
-    return os.path.join(config.TEST_DATA_REFERENCE_DIR, f'{test_case_name}_{solver_type}_result.nc')
+def tol_test_case_ref_file_path(test_case_name: str, solver_type: str):
+    return os.path.join(config.TOLERANCE_TEST_DATA_REFERENCE_DIR, f'{test_case_name}_{solver_type}_result.nc')
 
 
 def reset_ci_tests():
     for test_case_name in config.TEST_CASES:
         for solver_type in config.SOLVER_TYPES:
-            out_file_path = test_case_ref_file_path(test_case_name, solver_type)
+            out_file_path = tol_test_case_ref_file_path(test_case_name, solver_type)
             print(f'Generating reference file for test case: {test_case_name} solver: {solver_type}')
             run_testcase(test_case_name, solver_type, DEFAULT_TEST_CASE_CFG, output_file_path=out_file_path)
 
 
 def run_ci_tests():
+    run_ci_tol_tests()
+
+
+def run_ci_tol_tests():
     print('Tolerance tests:')
     for test_case_name in config.TEST_CASES:
         for solver_type in config.SOLVER_TYPES:
-            ref_file_path = test_case_ref_file_path(test_case_name, solver_type)
+            ref_file_path = tol_test_case_ref_file_path(test_case_name, solver_type)
             print(f'\t{test_case_name} solver: {solver_type}')
             run_testcase(test_case_name, solver_type, DEFAULT_TEST_CASE_CFG, reference_file_path=ref_file_path)
 
@@ -176,11 +180,14 @@ def main():
     parser = argparse.ArgumentParser(description="ECRAD automated tests runner")
     parser.add_argument("--reset-ci-tests", help="Generate reference results for ci testcases", action='store_true')
     parser.add_argument("--run-ci-tests", help="Run continuous integration tests", action='store_true')
+    parser.add_argument("--run-ci-tol-tests", help="Run continuous integration tolerance tests", action='store_true')
     args = parser.parse_args()
     if args.reset_ci_tests:
         reset_ci_tests()
     if args.run_ci_tests:
         run_ci_tests()
+    if args.run_ci_tol_tests:
+        run_ci_tol_tests()
 
 
 if __name__ == '__main__':

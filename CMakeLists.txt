@@ -145,8 +145,6 @@ endif()
 
 target_link_libraries(ecrad PUBLIC ${ECRAD_LIBS})
 
-option(UPDATE_DRIVER_REPORT_FORMAT "Update driver report format" ON)
-
 find_package(Python 3.6 REQUIRED)
 
 set(PY_VENV_DIR "${CMAKE_BINARY_DIR}/pyenv")
@@ -158,10 +156,7 @@ add_custom_command(
  COMMENT "Creating python virtual environment"
 )
 
-if(UPDATE_DRIVER_REPORT_FORMAT)
  # Regenerate serialization code for driver report
- find_package(Python 3 REQUIRED)
-
  add_custom_target(update-driver-report-format)
  add_dependencies(update-driver-report-format create-python-virtual-environment)
  set(DRV_REPORT_XSD ${CMAKE_SOURCE_DIR}/driver_report/driver_report.xsd)
@@ -174,7 +169,6 @@ if(UPDATE_DRIVER_REPORT_FORMAT)
    COMMAND ${PY_VENV_DIR}/bin/python3 ${PY_VENV_DIR}/bin/generateDS.py -o ${DRV_REPORT_PY_SERIALIZATION} ${DRV_REPORT_XSD}
    COMMENT "Generating report python serialization code"
    )
-endif()
 
 add_custom_target(reset-ci-tests)
 add_dependencies(reset-ci-tests ecrad create-python-virtual-environment)
