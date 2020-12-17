@@ -127,8 +127,6 @@ add_library(driver_report_fortran_wrapper)
 set_target_properties( driver_report_fortran_wrapper PROPERTIES Fortran_MODULE_DIRECTORY "${Fortran_MODULE_DIRECTORY}" )
 add_library(driver_report_c)
 add_dependencies(driver_report_fortran_wrapper driver_report_c)
-
-add_subdirectory(driver_report)
 endif()
 
 add_executable(ecrad ${ecrad_SRC})
@@ -149,26 +147,22 @@ find_package(Python 3.6 REQUIRED)
 
 set(PY_VENV_DIR "${CMAKE_BINARY_DIR}/pyenv")
 
+set(PY_PACKAGES xarray numpy netCDF4 generateDS py-cpuinfo)
+
 add_custom_target(create-python-virtual-environment ALL)
 add_custom_command(
  TARGET create-python-virtual-environment
  COMMAND ${Python_EXECUTABLE} -m venv ${PY_VENV_DIR}
+ COMMAND ${PY_VENV_DIR}/bin/pip3 install ${PY_PACKAGES}
  COMMENT "Creating python virtual environment"
 )
 
- # Regenerate serialization code for driver report
- add_custom_target(update-driver-report-format)
- add_dependencies(update-driver-report-format create-python-virtual-environment)
- set(DRV_REPORT_XSD ${CMAKE_SOURCE_DIR}/driver_report/driver_report.xsd)
- set(DRV_REPORT_FORTRAN_SRC_DIR ${CMAKE_SOURCE_DIR}/driver_report)
- set(DRV_REPORT_PY_SERIALIZATION ${CMAKE_SOURCE_DIR}/driver_report/report_serialization.py)
- #set(DRV_REPORT_UPDATE_SCRIPT ${CMAKE_SOURCE_DIR}/driver/update_report_serialization.py)
- add_custom_command(
-   TARGET update-driver-report-format
-   COMMAND ${PY_VENV_DIR}/bin/pip3 install --upgrade generateDS
-   COMMAND ${PY_VENV_DIR}/bin/python3 ${PY_VENV_DIR}/bin/generateDS.py -o ${DRV_REPORT_PY_SERIALIZATION} ${DRV_REPORT_XSD}
-   COMMENT "Generating report python serialization code"
-   )
+# Regenerate serialization code for driver report
+add_custom_target(update-driver-report-format)
+add_subdirectory(driver_report)
+
+# Regenerate serialization code for test reports
+add_custom_target(update-test-report-formats)
 
 add_custom_target(reset-ci-tests)
 add_dependencies(reset-ci-tests ecrad create-python-virtual-environment)
@@ -183,9 +177,16 @@ add_custom_target(run-ci-tests)
 add_dependencies(run-ci-tests ecrad create-python-virtual-environment)
 add_custom_command(
  TARGET run-ci-tests
- COMMAND ${PY_VENV_DIR}/bin/pip3 install xarray numpy netCDF4
  COMMAND ${PY_VENV_DIR}/bin/python3 ${CI_TESTS_RUNTIME_DIR}/tests_runner.py --run-ci-tests
  COMMENT "Running continious integration tests"
+)
+
+add_custom_target(run-cpu-regression-tests)
+add_dependencies(run-cpu-regression-tests ecrad create-python-virtual-environment)
+add_custom_command(
+ TARGET run-cpu-regression-tests
+ COMMAND ${PY_VENV_DIR}/bin/python3 ${CI_TESTS_RUNTIME_DIR}/tests_runner.py --run-cpu-reg-tests
+ COMMENT "Running continious integration CPU regression tests"
 )
 
 

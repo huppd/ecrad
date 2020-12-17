@@ -2,20 +2,22 @@
 # -*- coding: utf-8 -*-
 
 #
-# Generated Wed Dec 16 02:14:38 2020 by generateDS.py version 2.37.10.
+# Generated Thu Dec 17 16:05:59 2020 by generateDS.py version 2.37.10.
 # Python 3.7.9 (default, Aug 18 2020, 06:22:45)  [GCC 7.5.0]
 #
 # Command line options:
-#   ('-o', '/data/src/ecrad/driver_report/report_serialization.py')
+#   ('--silence', '')
+#   ('-f', '')
+#   ('-o', '/data/src/ecrad/driver_report/driver_report_serialization.py')
 #
 # Command line arguments:
 #   /data/src/ecrad/driver_report/driver_report.xsd
 #
 # Command line:
-#   /data/src/ecrad_build/release/pyenv/bin/generateDS.py -o "/data/src/ecrad/driver_report/report_serialization.py" /data/src/ecrad/driver_report/driver_report.xsd
+#   /data/src/ecrad_build/release/pyenv/bin/generateDS.py --silence -f -o "/data/src/ecrad/driver_report/driver_report_serialization.py" /data/src/ecrad/driver_report/driver_report.xsd
 #
 # Current working directory (os.getcwd()):
-#   release
+#   driver_report
 #
 
 import sys
@@ -967,12 +969,14 @@ class driver_report(GeneratedsSuper):
     __hash__ = GeneratedsSuper.__hash__
     subclass = None
     superclass = None
-    def __init__(self, step=None, gds_collector_=None, **kwargs_):
+    def __init__(self, cpu_model=None, step=None, gds_collector_=None, **kwargs_):
         self.gds_collector_ = gds_collector_
         self.gds_elementtree_node_ = None
         self.original_tagname_ = None
         self.parent_object_ = kwargs_.get('parent_object_')
         self.ns_prefix_ = None
+        self.cpu_model = _cast(None, cpu_model)
+        self.cpu_model_nsprefix_ = None
         if step is None:
             self.step = []
         else:
@@ -1003,6 +1007,10 @@ class driver_report(GeneratedsSuper):
         self.step.insert(index, value)
     def replace_step_at(self, index, value):
         self.step[index] = value
+    def get_cpu_model(self):
+        return self.cpu_model
+    def set_cpu_model(self, cpu_model):
+        self.cpu_model = cpu_model
     def hasContent_(self):
         if (
             self.step
@@ -1034,7 +1042,9 @@ class driver_report(GeneratedsSuper):
         else:
             outfile.write('/>%s' % (eol_, ))
     def exportAttributes(self, outfile, level, already_processed, namespaceprefix_='', name_='driver_report'):
-        pass
+        if self.cpu_model is not None and 'cpu_model' not in already_processed:
+            already_processed.add('cpu_model')
+            outfile.write(' cpu_model=%s' % (self.gds_encode(self.gds_format_string(quote_attrib(self.cpu_model), input_name='cpu_model')), ))
     def exportChildren(self, outfile, level, namespaceprefix_='', namespacedef_='', name_='driver_report', fromsubclass_=False, pretty_print=True):
         if pretty_print:
             eol_ = '\n'
@@ -1055,7 +1065,10 @@ class driver_report(GeneratedsSuper):
             self.buildChildren(child, node, nodeName_, gds_collector_=gds_collector_)
         return self
     def buildAttributes(self, node, attrs, already_processed):
-        pass
+        value = find_attr_value_('cpu_model', node)
+        if value is not None and 'cpu_model' not in already_processed:
+            already_processed.add('cpu_model')
+            self.cpu_model = value
     def buildChildren(self, child_, node, nodeName_, fromsubclass_=False, gds_collector_=None):
         if nodeName_ == 'step':
             obj_ = TestStep.factory(parent_object_=self)
@@ -1264,12 +1277,12 @@ def parse(inFileName, silence=False, print_warnings=True):
     if not SaveElementTreeNode:
         doc = None
         rootNode = None
-    if not silence:
-        sys.stdout.write('<?xml version="1.0" ?>\n')
-        rootObj.export(
-            sys.stdout, 0, name_=rootTag,
-            namespacedef_=namespacedefs,
-            pretty_print=True)
+##     if not silence:
+##         sys.stdout.write('<?xml version="1.0" ?>\n')
+##         rootObj.export(
+##             sys.stdout, 0, name_=rootTag,
+##             namespacedef_=namespacedefs,
+##             pretty_print=True)
     if print_warnings and len(gds_collector.get_messages()) > 0:
         separator = ('-' * 50) + '\n'
         sys.stderr.write(separator)
@@ -1301,12 +1314,12 @@ def parseEtree(inFileName, silence=False, print_warnings=True,
     if not SaveElementTreeNode:
         doc = None
         rootNode = None
-    if not silence:
-        content = etree_.tostring(
-            rootElement, pretty_print=True,
-            xml_declaration=True, encoding="utf-8")
-        sys.stdout.write(str(content))
-        sys.stdout.write('\n')
+##     if not silence:
+##         content = etree_.tostring(
+##             rootElement, pretty_print=True,
+##             xml_declaration=True, encoding="utf-8")
+##         sys.stdout.write(str(content))
+##         sys.stdout.write('\n')
     if print_warnings and len(gds_collector.get_messages()) > 0:
         separator = ('-' * 50) + '\n'
         sys.stderr.write(separator)
@@ -1337,11 +1350,11 @@ def parseString(inString, silence=False, print_warnings=True):
     rootObj.build(rootNode, gds_collector_=gds_collector)
     if not SaveElementTreeNode:
         rootNode = None
-    if not silence:
-        sys.stdout.write('<?xml version="1.0" ?>\n')
-        rootObj.export(
-            sys.stdout, 0, name_=rootTag,
-            namespacedef_='')
+##     if not silence:
+##         sys.stdout.write('<?xml version="1.0" ?>\n')
+##         rootObj.export(
+##             sys.stdout, 0, name_=rootTag,
+##             namespacedef_='')
     if print_warnings and len(gds_collector.get_messages()) > 0:
         separator = ('-' * 50) + '\n'
         sys.stderr.write(separator)
@@ -1367,12 +1380,12 @@ def parseLiteral(inFileName, silence=False, print_warnings=True):
     if not SaveElementTreeNode:
         doc = None
         rootNode = None
-    if not silence:
-        sys.stdout.write('#from report_serialization import *\n\n')
-        sys.stdout.write('import report_serialization as model_\n\n')
-        sys.stdout.write('rootObj = model_.rootClass(\n')
-        rootObj.exportLiteral(sys.stdout, 0, name_=rootTag)
-        sys.stdout.write(')\n')
+##     if not silence:
+##         sys.stdout.write('#from driver_report_serialization import *\n\n')
+##         sys.stdout.write('import driver_report_serialization as model_\n\n')
+##         sys.stdout.write('rootObj = model_.rootClass(\n')
+##         rootObj.exportLiteral(sys.stdout, 0, name_=rootTag)
+##         sys.stdout.write(')\n')
     if print_warnings and len(gds_collector.get_messages()) > 0:
         separator = ('-' * 50) + '\n'
         sys.stderr.write(separator)
