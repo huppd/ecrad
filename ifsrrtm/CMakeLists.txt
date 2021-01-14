@@ -42,5 +42,5 @@ yoerrto7.F90 yoerrto8.F90 yoerrto9.F90 susrtm.F90)
 
 PREPEND(ifsrrtm_SRC ${CMAKE_CURRENT_SOURCE_DIR} ${ifsrrtm_SRC})
 
-target_sources(ifsrrtm PUBLIC ${ifsrrtm_SRC})
+target_sources(ifsrrtm PRIVATE ${ifsrrtm_SRC})
 

@@ -76,6 +76,8 @@ set(CMAKE_Fortran_FLAGS_RELEASE "${FC_RELEASE_WARNFLAGS} ${FC_BASIC_FLAGS} ${FC_
 set(CMAKE_Fortran_FLAGS_RELEASE "${FC_RELEASE_WARNFLAGS} ${FC_BASIC_FLAGS} ${FC_FPPFLAGS} ${FC_RELEASE_OPTFLAGS} ${FC_RELEASE_DEBUGFLAGS} -I ${Fortran_MODULE_DIRECTORY}")
 set(CMAKE_Fortran_FLAGS_DEBUG "${FC_DEBUG_WARNFLAGS} ${FC_BASIC_FLAGS} ${FC_FPPFLAGS} ${FC_DEBUG_OPTFLAGS} ${FC_DEBUG_DEBUGFLAGS} -I ${Fortran_MODULE_DIRECTORY}")
 
+set(CMAKE_CXX_FLAGS_RELEASE "-fpic")
+
 if(USE_OPENMP)
   find_package(OpenMP REQUIRED)
   set(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE} ${OpenMP_Fortran_FLAGS}")
@@ -111,7 +113,7 @@ set_target_properties( radiation PROPERTIES Fortran_MODULE_DIRECTORY "${Fortran_
 add_subdirectory(radiation)
 add_dependencies(radiation utilities)
 
-add_library(radsurf)
+add_library(radsurf STATIC)
 set_target_properties( radsurf PROPERTIES Fortran_MODULE_DIRECTORY "${Fortran_MODULE_DIRECTORY}" )
 add_subdirectory(radsurf)
 add_dependencies(radsurf radiation)
@@ -123,25 +125,26 @@ message(
 )
 
 if(USE_REPORT)
-add_library(driver_report_fortran_wrapper)
-set_target_properties( driver_report_fortran_wrapper PROPERTIES Fortran_MODULE_DIRECTORY "${Fortran_MODULE_DIRECTORY}" )
 add_library(driver_report_c)
+
+add_library(driver_report_fortran_wrapper SHARED)
+set_target_properties( driver_report_fortran_wrapper PROPERTIES Fortran_MODULE_DIRECTORY "${Fortran_MODULE_DIRECTORY}" )
 add_dependencies(driver_report_fortran_wrapper driver_report_c)
+target_link_libraries(driver_report_fortran_wrapper PRIVATE driver_report_c)
 endif()
 
 add_executable(ecrad ${ecrad_SRC})
 set_target_properties( ecrad PROPERTIES Fortran_MODULE_DIRECTORY "${Fortran_MODULE_DIRECTORY}" )
 set(STATIC_LIBS ifsaux drhook ifsrrtm utilities radiation radsurf)
 if(USE_REPORT)
-set(STATIC_LIBS ${STATIC_LIBS} driver_report_fortran_wrapper driver_report_c)
+set(STATIC_LIBS ${STATIC_LIBS})
 endif()
 set(ECRAD_LIBS ${STATIC_LIBS} ${NETCDF_LIBRARIES_F90})
-
 if(USE_OPENMP)
   set(ECRAD_LIBS ${ECRAD_LIBS} ${OpenMP_Fortran_LIBRARIES})
 endif()
 
-target_link_libraries(ecrad PUBLIC ${ECRAD_LIBS})
+target_link_libraries(ecrad PRIVATE ${ECRAD_LIBS} ${ECRAD_LIBS} ${ECRAD_LIBS} driver_report_fortran_wrapper)
 
 find_package(Python 3.6 REQUIRED)
 
@@ -152,6 +155,7 @@ set(PY_PACKAGES xarray numpy netCDF4 generateDS py-cpuinfo)
 add_custom_target(create-python-virtual-environment ALL)
 add_custom_command(
  TARGET create-python-virtual-environment
+ COMMAND echo "${Python_EXECUTABLE} -m venv ${PY_VENV_DIR}"
  COMMAND ${Python_EXECUTABLE} -m venv ${PY_VENV_DIR}
  COMMAND ${PY_VENV_DIR}/bin/pip3 install ${PY_PACKAGES}
  COMMENT "Creating python virtual environment"

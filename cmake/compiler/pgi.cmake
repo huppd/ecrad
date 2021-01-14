@@ -4,7 +4,7 @@ endif()
 set(__claw_base_compiler YES)
 
 # For PGI compiler
-set(FC_BASIC_FLAGS "-Mbyteswapio")
+set(FC_BASIC_FLAGS "-Mbyteswapio -fpic")
 set(FC_FPPFLAGS "-Mpreprocess") 
 set(FC_RELEASE_OPTFLAGS "-O3 -acc -ta=nvidia")
 set(FC_DEBUG_OPTFLAGS "-O0")
