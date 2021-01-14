@@ -29,11 +29,10 @@ if (NETCDF_INCLUDES AND NETCDF_LIBRARIES)
   # Already in cache, be silent
   set (NETCDF_FIND_QUIETLY TRUE)
 endif (NETCDF_INCLUDES AND NETCDF_LIBRARIES)
+# Set cmake var NETCDF_DIR if NETCDF is in non-standard location
+find_path (NETCDF_INCLUDES netcdf.h HINTS ${NETCDF_DIR}/include)
 
-find_path (NETCDF_INCLUDES netcdf.h
-  HINTS NETCDF_DIR ENV NETCDF_DIR)
-
-find_library (NETCDF_LIBRARIES_C       NAMES netcdf)
+find_library (NETCDF_LIBRARIES_C HINTS ${NETCDF_DIR}/lib NAMES netcdf)
 mark_as_advanced(NETCDF_LIBRARIES_C)
 
 set (NetCDF_has_interfaces "YES") # will be set to NO if we're missing any interfaces
