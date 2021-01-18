@@ -294,9 +294,9 @@ contains
       ! decreasing height: progress normally
 
       ! Extract surface albedos at each gridpoint
-      call single_level%get_albedos(istartcol, iendcol, config, &
-           &                        sw_albedo_direct, sw_albedo_diffuse, &
-           &                        lw_albedo)
+      call single_level%get_albedos_sw(istartcol, iendcol, config, &
+           &                        sw_albedo_direct, sw_albedo_diffuse)
+      call single_level%get_albedos_lw(istartcol, iendcol, config, lw_albedo)
 
       ! Compute gas absorption optical depth in shortwave and
       ! longwave, shortwave single scattering albedo (i.e. fraction of
