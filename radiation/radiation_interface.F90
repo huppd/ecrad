@@ -381,36 +381,37 @@ contains
           write(nulout,'(a)') 'Computing longwave fluxes'
         end if
 
-        if (config%i_solver_lw == ISolverMcICA) then
-          ! Compute fluxes using the McICA longwave solver
-          call solver_mcica_lw(nlev,istartcol,iendcol, &
-               &  config, single_level, cloud, & 
-               &  od_lw, ssa_lw, g_lw, od_lw_cloud, ssa_lw_cloud, &
-               &  g_lw_cloud, planck_hl, lw_emission, lw_albedo, flux)
-        else if (config%i_solver_lw == ISolverSPARTACUS) then
-          ! Compute fluxes using the SPARTACUS longwave solver
-          call solver_spartacus_lw(nlev,istartcol,iendcol, &
-               &  config, thermodynamics, cloud, & 
-               &  od_lw, ssa_lw, g_lw, od_lw_cloud, ssa_lw_cloud, g_lw_cloud, &
-               &  planck_hl, lw_emission, lw_albedo, flux)
-        else if (config%i_solver_lw == ISolverTripleclouds) then
-          ! Compute fluxes using the Tripleclouds longwave solver
-          call solver_tripleclouds_lw(nlev,istartcol,iendcol, &
-               &  config, cloud, & 
-               &  od_lw, ssa_lw, g_lw, od_lw_cloud, ssa_lw_cloud, g_lw_cloud, &
-               &  planck_hl, lw_emission, lw_albedo, flux)
-        elseif (config%i_solver_lw == ISolverHomogeneous) then
-          ! Compute fluxes using the homogeneous solver
-          call solver_homogeneous_lw(nlev,istartcol,iendcol, &
-               &  config, cloud, & 
-               &  od_lw, ssa_lw, g_lw, od_lw_cloud, ssa_lw_cloud, &
-               &  g_lw_cloud, planck_hl, lw_emission, lw_albedo, flux)
-        else
-          ! Compute fluxes using the cloudless solver
-          call solver_cloudless_lw(nlev,istartcol,iendcol, &
-               &  config, od_lw, ssa_lw, g_lw, &
-               &  planck_hl, lw_emission, lw_albedo, flux)
-        end if
+        select case(config%i_solver_lw)
+            case (ISolverMcICA)
+              ! Compute fluxes using the McICA longwave solver
+              call solver_mcica_lw(nlev,istartcol,iendcol, &
+                   &  config, single_level, cloud, &
+                   &  od_lw, ssa_lw, g_lw, od_lw_cloud, ssa_lw_cloud, &
+                   &  g_lw_cloud, planck_hl, lw_emission, lw_albedo, flux)
+            case (ISolverSPARTACUS)
+              ! Compute fluxes using the SPARTACUS longwave solver
+              call solver_spartacus_lw(nlev,istartcol,iendcol, &
+                   &  config, thermodynamics, cloud, &
+                   &  od_lw, ssa_lw, g_lw, od_lw_cloud, ssa_lw_cloud, g_lw_cloud, &
+                   &  planck_hl, lw_emission, lw_albedo, flux)
+            case (ISolverTripleclouds)
+              ! Compute fluxes using the Tripleclouds longwave solver
+              call solver_tripleclouds_lw(nlev,istartcol,iendcol, &
+                   &  config, cloud, &
+                   &  od_lw, ssa_lw, g_lw, od_lw_cloud, ssa_lw_cloud, g_lw_cloud, &
+                   &  planck_hl, lw_emission, lw_albedo, flux)
+            case (ISolverHomogeneous)
+              ! Compute fluxes using the homogeneous solver
+              call solver_homogeneous_lw(nlev,istartcol,iendcol, &
+                   &  config, cloud, &
+                   &  od_lw, ssa_lw, g_lw, od_lw_cloud, ssa_lw_cloud, &
+                   &  g_lw_cloud, planck_hl, lw_emission, lw_albedo, flux)
+            case default
+              ! Compute fluxes using the cloudless solver
+              call solver_cloudless_lw(nlev,istartcol,iendcol, &
+                   &  config, od_lw, ssa_lw, g_lw, &
+                   &  planck_hl, lw_emission, lw_albedo, flux)
+        end select
       end if
 
       if (config%do_sw) then
@@ -418,41 +419,42 @@ contains
           write(nulout,'(a)') 'Computing shortwave fluxes'
         end if
 
-        if (config%i_solver_sw == ISolverMcICA) then
-          ! Compute fluxes using the McICA shortwave solver
-          call solver_mcica_sw(nlev,istartcol,iendcol, &
-               &  config, single_level, cloud, & 
-               &  od_sw, ssa_sw, g_sw, od_sw_cloud, ssa_sw_cloud, &
-               &  g_sw_cloud, sw_albedo_direct, sw_albedo_diffuse, &
-               &  incoming_sw, flux)
-        else if (config%i_solver_sw == ISolverSPARTACUS) then
-          ! Compute fluxes using the SPARTACUS shortwave solver
-          call solver_spartacus_sw(nlev,istartcol,iendcol, &
-               &  config, single_level, thermodynamics, cloud, & 
-               &  od_sw, ssa_sw, g_sw, od_sw_cloud, ssa_sw_cloud, &
-               &  g_sw_cloud, sw_albedo_direct, sw_albedo_diffuse, &
-               &  incoming_sw, flux)
-        else if (config%i_solver_sw == ISolverTripleclouds) then
-          ! Compute fluxes using the Tripleclouds shortwave solver
-          call solver_tripleclouds_sw(nlev,istartcol,iendcol, &
-               &  config, single_level, cloud, & 
-               &  od_sw, ssa_sw, g_sw, od_sw_cloud, ssa_sw_cloud, &
-               &  g_sw_cloud, sw_albedo_direct, sw_albedo_diffuse, &
-               &  incoming_sw, flux)
-        elseif (config%i_solver_sw == ISolverHomogeneous) then
-          ! Compute fluxes using the homogeneous solver
-          call solver_homogeneous_sw(nlev,istartcol,iendcol, &
-               &  config, single_level, cloud, & 
-               &  od_sw, ssa_sw, g_sw, od_sw_cloud, ssa_sw_cloud, &
-               &  g_sw_cloud, sw_albedo_direct, sw_albedo_diffuse, &
-               &  incoming_sw, flux)
-        else
-          ! Compute fluxes using the cloudless solver
-          call solver_cloudless_sw(nlev,istartcol,iendcol, &
-               &  config, single_level, od_sw, ssa_sw, g_sw, &
-               &  sw_albedo_direct, sw_albedo_diffuse, &
-               &  incoming_sw, flux)
-        end if
+        select case(config%i_solver_sw)
+            case (ISolverMcICA)
+              ! Compute fluxes using the McICA shortwave solver
+              call solver_mcica_sw(nlev,istartcol,iendcol, &
+                   &  config, single_level, cloud, &
+                   &  od_sw, ssa_sw, g_sw, od_sw_cloud, ssa_sw_cloud, &
+                   &  g_sw_cloud, sw_albedo_direct, sw_albedo_diffuse, &
+                   &  incoming_sw, flux)
+            case (ISolverSPARTACUS)
+              ! Compute fluxes using the SPARTACUS shortwave solver
+              call solver_spartacus_sw(nlev,istartcol,iendcol, &
+                   &  config, single_level, thermodynamics, cloud, &
+                   &  od_sw, ssa_sw, g_sw, od_sw_cloud, ssa_sw_cloud, &
+                   &  g_sw_cloud, sw_albedo_direct, sw_albedo_diffuse, &
+                   &  incoming_sw, flux)
+            case (ISolverTripleclouds)
+              ! Compute fluxes using the Tripleclouds shortwave solver
+              call solver_tripleclouds_sw(nlev,istartcol,iendcol, &
+                   &  config, single_level, cloud, &
+                   &  od_sw, ssa_sw, g_sw, od_sw_cloud, ssa_sw_cloud, &
+                   &  g_sw_cloud, sw_albedo_direct, sw_albedo_diffuse, &
+                   &  incoming_sw, flux)
+            case (ISolverHomogeneous)
+              ! Compute fluxes using the homogeneous solver
+              call solver_homogeneous_sw(nlev,istartcol,iendcol, &
+                   &  config, single_level, cloud, &
+                   &  od_sw, ssa_sw, g_sw, od_sw_cloud, ssa_sw_cloud, &
+                   &  g_sw_cloud, sw_albedo_direct, sw_albedo_diffuse, &
+                   &  incoming_sw, flux)
+            case default
+              ! Compute fluxes using the cloudless solver
+              call solver_cloudless_sw(nlev,istartcol,iendcol, &
+                   &  config, single_level, od_sw, ssa_sw, g_sw, &
+                   &  sw_albedo_direct, sw_albedo_diffuse, &
+                   &  incoming_sw, flux)
+        end select
       end if
 
       ! Store surface downwelling fluxes in bands from fluxes in g
