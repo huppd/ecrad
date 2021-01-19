@@ -93,6 +93,7 @@ module radiation_flux
    contains
      procedure :: allocate   => allocate_flux_type
      procedure :: deallocate => deallocate_flux_type
+     procedure :: acc_compare => compare_flux_type
      procedure :: calc_surface_spectral
      procedure :: out_of_physical_bounds
   end type flux_type
@@ -584,5 +585,109 @@ contains
     end do
 
   end subroutine indexed_sum_profile
-  
+
+  !---------------------------------------------------------------------
+  ! Compare arrays for flux profiles
+  subroutine compare_flux_type(this, filename, routinename, lineno)
+
+    class(flux_type), intent(in)    :: this
+    character(len=*), intent(in)    :: filename, routinename
+    integer, intent(in)             :: lineno
+
+
+
+      if (allocated(this%lw_up)) then
+        call pgi_compare(this%lw_up, "double", size(this%lw_up), "flux%lw_up", TRIM(filename), TRIM(routinename), lineno)
+        if (allocated(this%lw_dn)) then
+          call pgi_compare(this%lw_dn, "double", size(this%lw_dn), "flux%lw_dn", TRIM(filename), TRIM(routinename), lineno)
+        endif
+        if (allocated(this%lw_up_clear)) then
+          call pgi_compare(this%lw_up_clear, "double", size(this%lw_up_clear), "flux%lw_up_clear", TRIM(filename), TRIM(routinename), lineno)
+        endif
+        if (allocated(this%lw_dn_clear)) then
+          call pgi_compare(this%lw_dn_clear, "double", size(this%lw_dn_clear), "flux%lw_dn_clear", TRIM(filename), TRIM(routinename), lineno)
+        endif
+      end if
+
+      if (allocated(this%sw_up)) then
+        call pgi_compare(this%sw_up, "double", size(this%sw_up), "flux%sw_up", TRIM(filename), TRIM(routinename), lineno)
+        if (allocated(this%sw_dn)) then
+          call pgi_compare(this%sw_dn, "double", size(this%sw_dn), "flux%sw_dn", TRIM(filename), TRIM(routinename), lineno)
+        endif
+        if (allocated(this%sw_up_clear)) then
+          call pgi_compare(this%sw_up_clear, "double", size(this%sw_up_clear), "flux%sw_up_clear", TRIM(filename), TRIM(routinename), lineno)
+        endif
+        if (allocated(this%sw_dn_clear)) then
+          call pgi_compare(this%sw_dn_clear, "double", size(this%sw_dn_clear), "flux%sw_dn_clear", TRIM(filename), TRIM(routinename), lineno)
+        endif
+        if (allocated(this%sw_dn_direct)) then
+          call pgi_compare(this%sw_dn_direct, "double", size(this%sw_dn_direct), "flux%sw_dn_direct", TRIM(filename), TRIM(routinename), lineno)
+        endif
+        if (allocated(this%sw_dn_direct_clear)) then
+          call pgi_compare(this%sw_dn_direct_clear, "double", size(this%sw_dn_direct_clear), "flux%sw_dn_direct_clear", TRIM(filename), TRIM(routinename), lineno)
+        endif
+      end if
+
+      if (allocated(this%lw_up_band)) then
+        call pgi_compare(this%lw_up_band, "double", size(this%lw_up_band), "lflux%w_up_band", TRIM(filename), TRIM(routinename), lineno)
+        if (allocated(this%lw_dn_band)) then
+          call pgi_compare(this%lw_dn_band, "double", size(this%lw_dn_band), "flux%lw_dn_band", TRIM(filename), TRIM(routinename), lineno)
+        endif
+        if (allocated(this%lw_up_clear_band)) then
+          call pgi_compare(this%lw_up_clear_band, "double", size(this%lw_up_clear_band), "flux%lw_up_clear_band", TRIM(filename), TRIM(routinename), lineno)
+        endif
+        if (allocated(this%lw_dn_clear_band)) then
+          call pgi_compare(this%lw_dn_clear_band, "double", size(this%lw_dn_clear_band), "flux%lw_dn_clear_band", TRIM(filename), TRIM(routinename), lineno)
+        endif
+      end if
+
+      if (allocated(this%sw_up_band)) then
+        call pgi_compare(this%sw_up_band, "double", size(this%sw_up_band), "flux%sw_up_band", TRIM(filename), TRIM(routinename), lineno)
+        if (allocated(this%sw_dn_band)) then
+          call pgi_compare(this%sw_dn_band, "double", size(this%sw_dn_band), "flux%sw_dn_band", TRIM(filename), TRIM(routinename), lineno)
+        endif
+        if (allocated(this%sw_up_clear_band)) then
+          call pgi_compare(this%sw_up_clear_band, "double", size(this%sw_up_clear_band), "flux%sw_up_clear_band", TRIM(filename), TRIM(routinename), lineno)
+        endif
+        if (allocated(this%sw_dn_clear_band)) then
+          call pgi_compare(this%sw_dn_clear_band, "double", size(this%sw_dn_clear_band), "flux%sw_dn_clear_band", TRIM(filename), TRIM(routinename), lineno)
+        endif
+        if (allocated(this%sw_dn_direct_band)) then
+          call pgi_compare(this%sw_dn_direct_band, "double", size(this%sw_dn_direct_band), "flux%sw_dn_direct_band", TRIM(filename), TRIM(routinename), lineno)
+        endif
+        if (allocated(this%sw_dn_direct_clear_band)) then
+          call pgi_compare(this%sw_dn_direct_clear_band, "double", size(this%sw_dn_direct_clear_band), "flux%sw_dn_direct_clear_band", TRIM(filename), TRIM(routinename), lineno)
+        endif
+      end if
+
+      if (allocated(this%sw_dn_surf_band)) then
+        call pgi_compare(this%sw_dn_surf_band, "double", size(this%sw_dn_surf_band), "flux%sw_dn_surf_band", TRIM(filename), TRIM(routinename), lineno)
+      end if
+      if (allocated(this%sw_dn_surf_clear_band)) then
+        call pgi_compare(this%sw_dn_surf_clear_band, "double", size(this%sw_dn_surf_clear_band), "flux%sw_dn_surf_clear_band", TRIM(filename), TRIM(routinename), lineno)
+      end if
+
+      if (allocated(this%lw_dn_surf_canopy)) then
+        call pgi_compare(this%lw_dn_surf_canopy, "double", size(this%lw_dn_surf_canopy), "flux%lw_dn_surf_canopy", TRIM(filename), TRIM(routinename), lineno)
+      endif
+      if (allocated(this%sw_dn_diffuse_surf_canopy)) then
+        call pgi_compare(this%sw_dn_diffuse_surf_canopy, "double", size(this%sw_dn_diffuse_surf_canopy), "flux%sw_dn_diffuse_surf_canopy", TRIM(filename), TRIM(routinename), lineno)
+      endif
+      if (allocated(this%sw_dn_direct_surf_canopy)) then
+        call pgi_compare(this%sw_dn_direct_surf_canopy, "double", size(this%sw_dn_direct_surf_canopy), "flux%sw_dn_direct_surf_canopy", TRIM(filename), TRIM(routinename), lineno)
+      endif
+
+      if (allocated(this%cloud_cover_sw)) then
+        call pgi_compare(this%cloud_cover_sw, "double", size(this%cloud_cover_sw), "flux%cloud_cover_sw", TRIM(filename), TRIM(routinename), lineno)
+      end if
+      if (allocated(this%cloud_cover_lw)) then
+        call pgi_compare(this%cloud_cover_lw, "double", size(this%cloud_cover_lw), "flux%cloud_cover_lw", TRIM(filename), TRIM(routinename), lineno)
+      end if
+
+      if (allocated(this%lw_derivatives)) then
+        call pgi_compare(this%lw_derivatives, "double", size(this%lw_derivatives), "flux%lw_derivatives", TRIM(filename), TRIM(routinename), lineno)
+      end if
+
+  end subroutine compare_flux_type
+
 end module radiation_flux
