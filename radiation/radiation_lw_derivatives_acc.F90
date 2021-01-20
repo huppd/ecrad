@@ -36,7 +36,7 @@ contains
   subroutine calc_lw_derivatives_ica(ng, nlev, icol, transmittance, flux_up_surf, lw_derivatives)
 
     use parkind1, only           : jprb
-    use ecradhook,  only           : lhook, dr_hook
+    use yomhook,  only           : lhook, dr_hook
 
     implicit none
 
@@ -82,7 +82,7 @@ contains
        &                               flux_up_surf, weight, lw_derivatives)
 
     use parkind1, only           : jprb
-    use ecradhook,  only           : lhook, dr_hook
+    use yomhook,  only           : lhook, dr_hook
 
     implicit none
 
@@ -132,7 +132,7 @@ contains
        &                                u_matrix, flux_up_surf, lw_derivatives)
 
     use parkind1, only           : jprb
-    use ecradhook,  only           : lhook, dr_hook
+    use yomhook,  only           : lhook, dr_hook
 
     use radiation_matrix
 
@@ -194,7 +194,7 @@ contains
        &                                u_matrix, flux_up_surf, lw_derivatives)
 
     use parkind1, only           : jprb
-    use ecradhook,  only           : lhook, dr_hook
+    use yomhook,  only           : lhook, dr_hook
 
     use radiation_matrix
 

@@ -175,28 +175,28 @@ contains
     integer, intent(in) :: ng, nlev, istartcol, iendcol
 
     ! where to compute this
-    logical, intent(in) :: mask(:,:)
+    logical, intent(in) :: mask(nlev, istartcol:iendcol)
 
     ! Optical depth and single scattering albedo
-    real(jprb), intent(in), dimension(:,:,:) :: od
+    real(jprb), intent(in), dimension(ng, nlev, istartcol:iendcol) :: od
 
     ! The two transfer coefficients from the two-stream
     ! differentiatial equations (computed by
     ! calc_two_stream_gammas_lw)
-    real(jprb), intent(in), dimension(:,:,:) :: gamma1, gamma2
+    real(jprb), intent(in), dimension(ng, nlev, istartcol:iendcol) :: gamma1, gamma2
 
     ! The Planck terms (functions of temperature) at the top and
     ! bottom of the layer
-    real(jprb), intent(in), dimension(:,:,:) :: planck
+    real(jprb), intent(in), dimension(ng, nlev+1, istartcol:iendcol) :: planck
 
     ! The diffuse reflectance and transmittance, i.e. the fraction of
     ! diffuse radiation incident on a layer from either top or bottom
     ! that is reflected back or transmitted through
-    real(jprb), intent(out), dimension(:,:,:) :: reflectance, transmittance
+    real(jprb), intent(out), dimension(ng, nlev, istartcol:iendcol) :: reflectance, transmittance
 
     ! The upward emission at the top of the layer and the downward
     ! emission at its base, due to emission from within the layer
-    real(jprb), intent(out), dimension(:,:,:) :: source_up, source_dn
+    real(jprb), intent(out), dimension(ng, nlev, istartcol:iendcol) :: source_up, source_dn
 
     real(jprd) :: k_exponent, reftrans_factor
     real(jprd) :: exponential  ! = exp(-k_exponent*od)
@@ -349,23 +349,23 @@ contains
     integer, intent(in) :: ng, nlev, istartcol, iendcol
 
     ! where to do this computation
-    logical, intent(in) :: mask(:,:)
+    logical, intent(in) :: mask(nlev, istartcol:iendcol)
 
     ! Optical depth and single scattering albedo
-    real(jprb), intent(in), dimension(:,:,:) :: od
+    real(jprb), intent(in), dimension(ng, nlev, istartcol:iendcol) :: od
 
     ! The Planck terms (functions of temperature) at the top and
     ! bottom of the layer
-    real(jprb), intent(in), dimension(:,:,:) :: planck
+    real(jprb), intent(in), dimension(ng, nlev+1, istartcol:iendcol) :: planck
 
     ! The diffuse transmittance, i.e. the fraction of diffuse
     ! radiation incident on a layer from either top or bottom that is
     ! reflected back or transmitted through
-    real(jprb), intent(out), dimension(:,:,:) :: transmittance
+    real(jprb), intent(out), dimension(ng, nlev, istartcol:iendcol) :: transmittance
 
     ! The upward emission at the top of the layer and the downward
     ! emission at its base, due to emission from within the layer
-    real(jprb), intent(out), dimension(:,:,:) :: source_up, source_dn
+    real(jprb), intent(out), dimension(ng, nlev, istartcol:iendcol) :: source_up, source_dn
 
     real(jprd) :: coeff, coeff_up_top, coeff_up_bot, coeff_dn_top, coeff_dn_bot !, planck_mean
 

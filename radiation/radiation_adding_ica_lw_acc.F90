@@ -28,7 +28,7 @@ contains
        &  flux_up, flux_dn)
 
     use parkind1, only           : jprb
-    use ecradhook,  only           : lhook, dr_hook
+    use yomhook,  only           : lhook, dr_hook
 
     implicit none
 
@@ -40,17 +40,17 @@ contains
     logical, intent(in) :: mask(:)
 
     ! Surface emission (W m-2) and albedo
-    real(jprb), intent(in),  dimension(:, :) :: emission_surf, albedo_surf
+    real(jprb), intent(in),  dimension(ng, istartcol:iendcol) :: emission_surf, albedo_surf
 
     ! Diffuse reflectance and transmittance of each layer
-    real(jprb), intent(in),  dimension(:, :, :)   :: reflectance, transmittance
+    real(jprb), intent(in),  dimension(ng, nlev, istartcol:iendcol)   :: reflectance, transmittance
 
     ! Emission from each layer in an upward and downward direction
-    real(jprb), intent(in),  dimension(:, :, :)   :: source_up, source_dn
+    real(jprb), intent(in),  dimension(ng, nlev, istartcol:iendcol)   :: source_up, source_dn
 
     ! Resulting fluxes (W m-2) at half-levels: diffuse upwelling and
     ! downwelling
-    real(jprb), intent(out), dimension(:, :, :) :: flux_up, flux_dn
+    real(jprb), intent(out), dimension(ng, nlev+1, istartcol:iendcol) :: flux_up, flux_dn
     
     ! Albedo of the entire earth/atmosphere system below each half
     ! level
@@ -147,7 +147,7 @@ contains
        &  flux_up, flux_dn)
 
     use parkind1, only           : jprb
-    use ecradhook,  only           : lhook, dr_hook
+    use yomhook,  only           : lhook, dr_hook
 
     implicit none
 
@@ -160,26 +160,26 @@ contains
     logical, intent(in) :: mask(:)
 
     ! Surface emission (W m-2) and albedo
-    real(jprb), intent(in),  dimension(:,:) :: emission_surf, albedo_surf
+    real(jprb), intent(in),  dimension(ng, istartcol:iendcol) :: emission_surf, albedo_surf
 
     ! Diffuse reflectance and transmittance of each layer
-    real(jprb), intent(in),  dimension(:,:,:)   :: reflectance, transmittance
+    real(jprb), intent(in),  dimension(ng, nlev, istartcol:iendcol)   :: reflectance, transmittance
 
     ! Emission from each layer in an upward and downward direction
-    real(jprb), intent(in),  dimension(:,:,:)   :: source_up, source_dn
+    real(jprb), intent(in),  dimension(ng, nlev, istartcol:iendcol)   :: source_up, source_dn
 
     ! Determine which layers are cloud-free
-    logical, intent(in) :: is_clear_sky_layer(:,:)
+    logical, intent(in) :: is_clear_sky_layer(nlev, istartcol:iendcol)
 
     ! Index to highest cloudy layer
-    integer, intent(in) :: i_cloud_top(:)
+    integer, intent(in) :: i_cloud_top(istartcol:iendcol)
 
     ! Pre-computed clear-sky downwelling fluxes (W m-2) at half-levels
-    real(jprb), intent(in), dimension(:,:,:)  :: flux_dn_clear
+    real(jprb), intent(in), dimension(ng, nlev+1, istartcol:iendcol)  :: flux_dn_clear
 
     ! Resulting fluxes (W m-2) at half-levels: diffuse upwelling and
     ! downwelling
-    real(jprb), intent(out), dimension(:,:,:) :: flux_up, flux_dn
+    real(jprb), intent(out), dimension(ng, nlev+1, istartcol:iendcol) :: flux_up, flux_dn
     
     ! Albedo of the entire earth/atmosphere system below each half
     ! level
@@ -300,7 +300,7 @@ contains
        &  transmittance, source_up, source_dn, emission_surf, albedo_surf, flux_up, flux_dn)
 
     use parkind1, only           : jprb
-    use ecradhook,  only           : lhook, dr_hook
+    use yomhook,  only           : lhook, dr_hook
 
     implicit none
 
@@ -310,20 +310,20 @@ contains
     integer, intent(in) :: istartcol
     integer, intent(in) :: iendcol
 
-    logical, intent(in) :: mask(:)
+    logical, intent(in) :: mask(istartcol:iendcol)
 
     ! Surface emission (W m-2) and albedo
-    real(jprb), intent(in),  dimension(:,:) :: emission_surf, albedo_surf
+    real(jprb), intent(in),  dimension(ng, istartcol:iendcol) :: emission_surf, albedo_surf
 
     ! Diffuse reflectance and transmittance of each layer
-    real(jprb), intent(in),  dimension(:,:,:)   :: transmittance
+    real(jprb), intent(in),  dimension(ng, nlev,istartcol:iendcol)   :: transmittance
 
     ! Emission from each layer in an upward and downward direction
-    real(jprb), intent(in),  dimension(:,:,:)   :: source_up, source_dn
+    real(jprb), intent(in),  dimension(ng, nlev,istartcol:iendcol)   :: source_up, source_dn
 
     ! Resulting fluxes (W m-2) at half-levels: diffuse upwelling and
     ! downwelling
-    real(jprb), intent(out), dimension(:,:,:) :: flux_up, flux_dn
+    real(jprb), intent(out), dimension(ng, nlev+1, istartcol:iendcol) :: flux_up, flux_dn
     
     ! Loop index for model level
     integer :: jlev, jg, jcol

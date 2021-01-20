@@ -35,7 +35,7 @@ contains
        &  flux)
 
     use parkind1, only           : jprb
-    use ecradhook,  only           : lhook, dr_hook
+    use yomhook,  only           : lhook, dr_hook
 
     use radiation_io,   only           : nulerr, radiation_abort
     use radiation_config, only         : config_type

@@ -194,7 +194,7 @@ contains
     use radiation_tripleclouds_sw,only : solver_tripleclouds_sw
     use radiation_tripleclouds_lw,only : solver_tripleclouds_lw
     use radiation_mcica_sw,       only : solver_mcica_sw
-#ifdef LOOP_REODER
+#ifdef LOOP_REORDER
     use radiation_mcica_lw_acc,   only : solver_mcica_lw
 #else
     use radiation_mcica_lw,       only : solver_mcica_lw

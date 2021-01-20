@@ -93,7 +93,7 @@ module radiation_flux
    contains
      procedure :: allocate   => allocate_flux_type
      procedure :: deallocate => deallocate_flux_type
-     procedure :: acc_compare => compare_flux_type
+     procedure :: compare => compare_flux_type
      procedure :: calc_surface_spectral
      procedure :: out_of_physical_bounds
   end type flux_type
