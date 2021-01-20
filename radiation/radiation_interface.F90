@@ -204,6 +204,8 @@ contains
     ! Treatment of gas and hydrometeor optics 
     use radiation_monochromatic,  only : &
          &   gas_optics_mono         => gas_optics, &
+         &   gas_optics_mono_sw      => gas_optics_sw, &
+         &   gas_optics_mono_lw      => gas_optics_lw, &
          &   cloud_optics_mono       => cloud_optics, &
          &   add_aerosol_optics_mono => add_aerosol_optics
     use radiation_ifs_rrtm,       only : gas_optics, gas_optics_sw, gas_optics_lw
@@ -304,10 +306,12 @@ contains
       ! incoming shortwave flux at each g-point, for the specified
       ! range of atmospheric columns
       if (config%i_gas_model == IGasModelMonochromatic) then
-        call gas_optics_mono(ncol,nlev,istartcol,iendcol, config, &
+        call gas_optics_mono_sw(ncol,nlev,istartcol,iendcol, config, &
+             &  single_level, thermodynamics, gas, od_sw, ssa_sw, &
+             &  incoming_sw)
+        call gas_optics_mono_lw(ncol,nlev,istartcol,iendcol, config, &
              &  single_level, thermodynamics, gas, lw_albedo, &
-             &  od_lw, od_sw, ssa_sw, &
-             &  planck_hl, lw_emission, incoming_sw)
+             &  od_lw, planck_hl, lw_emission)
       else
         call gas_optics_sw(ncol,nlev,istartcol,iendcol, config, &
              &  single_level, thermodynamics, gas, &
