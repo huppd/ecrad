@@ -51,7 +51,7 @@ module radiation_config
   ! independently, except for "Homogeneous", which must be the same
   ! for both
   enum, bind(c) 
-     enumerator ISolverCloudless = 0, ISolverHomogeneous = 1, ISolverMcICA = 2, &
+     enumerator :: ISolverCloudless = 0, ISolverHomogeneous = 1, ISolverMcICA = 2, &
           &     ISolverSpartacus = 3, ISolverTripleclouds  = 4
   end enum
   character(len=*), parameter :: SolverName(0:4) = (/ 'Cloudless   ', &
