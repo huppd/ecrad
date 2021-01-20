@@ -206,7 +206,7 @@ contains
          &   gas_optics_mono         => gas_optics, &
          &   cloud_optics_mono       => cloud_optics, &
          &   add_aerosol_optics_mono => add_aerosol_optics
-    use radiation_ifs_rrtm,       only : gas_optics
+    use radiation_ifs_rrtm,       only : gas_optics, gas_optics_sw, gas_optics_lw
     use radiation_cloud_optics,   only : cloud_optics
     use radiation_aerosol_optics, only : add_aerosol_optics
 
@@ -309,11 +309,13 @@ contains
              &  od_lw, od_sw, ssa_sw, &
              &  planck_hl, lw_emission, incoming_sw)
       else
-        call gas_optics(ncol,nlev,istartcol,iendcol, config, &
+        call gas_optics_sw(ncol,nlev,istartcol,iendcol, config, &
              &  single_level, thermodynamics, gas, &
-             &  od_lw, od_sw, ssa_sw, lw_albedo=lw_albedo, &
-             &  planck_hl=planck_hl, lw_emission=lw_emission, &
-             &  incoming_sw=incoming_sw)
+             &  od_sw, ssa_sw, incoming_sw=incoming_sw)
+        call gas_optics_lw(ncol,nlev,istartcol,iendcol, config, &
+             &  single_level, thermodynamics, gas, &
+             &  od_lw,  lw_albedo=lw_albedo, &
+             &  planck_hl=planck_hl, lw_emission=lw_emission)
       end if
 
       if (config%do_clouds) then
