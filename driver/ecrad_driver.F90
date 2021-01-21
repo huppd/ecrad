@@ -318,6 +318,10 @@ program ecrad_driver
   endif
 #endif
 
+  if (driver_config%do_parallel) then
+    config%run_solvers_in_parallel = driver_config%do_parallel
+  end if
+
   ! Option of repeating calculation multiple time for more accurate
   ! profiling
   do jrepeat = 1,driver_config%nrepeat

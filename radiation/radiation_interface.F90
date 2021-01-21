@@ -300,10 +300,21 @@ contains
       end if
     end if
 
-    call radiation_run_sw(ncol, nlev, istartcol, iendcol, config, &
-       &  single_level, thermodynamics, gas, cloud, aerosol, flux)
-    call radiation_run_lw(ncol, nlev, istartcol, iendcol, config, &
-       &  single_level, thermodynamics, gas, cloud, aerosol, flux)
+    if (config%run_solvers_in_parallel) then
+    !$omp parallel sections
+    !$omp section
+        call radiation_run_sw(ncol, nlev, istartcol, iendcol, config, &
+           &  single_level, thermodynamics, gas, cloud, aerosol, flux)
+    !$omp section
+        call radiation_run_lw(ncol, nlev, istartcol, iendcol, config, &
+           &  single_level, thermodynamics, gas, cloud, aerosol, flux)
+    !$omp end parallel sections
+    else
+        call radiation_run_sw(ncol, nlev, istartcol, iendcol, config, &
+           &  single_level, thermodynamics, gas, cloud, aerosol, flux)
+        call radiation_run_lw(ncol, nlev, istartcol, iendcol, config, &
+           &  single_level, thermodynamics, gas, cloud, aerosol, flux)
+    end if
 
     if (lhook) call dr_hook('radiation_interface:radiation_run',1,hook_handle)
 

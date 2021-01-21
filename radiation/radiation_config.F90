@@ -530,6 +530,8 @@ module radiation_config
     ! cloud processing
     logical :: do_clouds = .true.
 
+    logical :: run_solvers_in_parallel = .true.
+
    contains
      procedure :: read => read_config_from_namelist
      procedure :: consolidate => consolidate_config
@@ -1284,6 +1286,8 @@ contains
                &   'overhang_factor', this%overhang_factor)
         end if
       end if
+      call print_logical('  Run shortwave and longwave solvers in parallel', &
+           &   'run_solvers_in_parallel', this%run_solvers_in_parallel)
             
     end if
     
