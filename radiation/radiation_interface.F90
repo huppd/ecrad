@@ -227,11 +227,7 @@ contains
   ! config object. There are ncol profiles of which only istartcol to
   ! iendcol are to be processed, and there are nlev model levels.  The
   ! output fluxes are written to the flux object, and all other
-  ! objects contain the input variables.  The variables may be defined
-  ! either in order of increasing or decreasing pressure, but if in
-  ! order of decreasing pressure then radiation_reverse will be called
-  ! to reverse the order for the computation and then reverse the
-  ! order of the output fluxes to match the inputs.
+  ! objects contain the input variables.
   subroutine radiation_run(ncol, nlev, istartcol, iendcol, config, &
        &  single_level, thermodynamics, gas, cloud, aerosol, flux)
 
@@ -289,25 +285,86 @@ contains
     ! Output
     type(flux_type),          intent(inout):: flux
 
+    real(jprb) :: hook_handle
 
-    ! Local variables
+    if (lhook) call dr_hook('radiation_interface:radiation_run',0,hook_handle)
 
-    ! Layer optical depth, single scattering albedo and asymmetry factor of
-    ! gases and aerosols at each longwave g-point, where the latter
-    ! two variables are only defined if aerosol longwave scattering is
-    ! enabled (otherwise both are treated as zero).
-    real(jprb), dimension(config%n_g_lw,nlev,istartcol:iendcol) :: od_lw
-    real(jprb), dimension(config%n_g_lw_if_scattering,nlev,istartcol:iendcol) :: &
-         &  ssa_lw, g_lw
+    if (config%i_gas_model /= IGasModelMonochromatic) then
+      if (config%do_clouds) then
+        ! Crop the cloud fraction to remove clouds that have too small
+        ! a fraction or water content; after this, we can safely
+        ! assume that a cloud is present if cloud%fraction > 0.0.
+        call cloud%crop_cloud_fraction(istartcol, iendcol, &
+             &            config%cloud_fraction_threshold, &
+             &            config%cloud_mixing_ratio_threshold)
+      end if
+    end if
 
-    ! Layer in-cloud optical depth, single scattering albedo and
-    ! asymmetry factor of hydrometeors in each longwave band, where
-    ! the latter two variables are only defined if hydrometeor
-    ! longwave scattering is enabled (otherwise both are treated as
-    ! zero).
-    real(jprb), dimension(config%n_bands_lw,nlev,istartcol:iendcol) :: od_lw_cloud
-    real(jprb), dimension(config%n_bands_lw_if_scattering,nlev,istartcol:iendcol) :: &
-         &  ssa_lw_cloud, g_lw_cloud
+    call radiation_run_sw(ncol, nlev, istartcol, iendcol, config, &
+       &  single_level, thermodynamics, gas, cloud, aerosol, flux)
+    call radiation_run_lw(ncol, nlev, istartcol, iendcol, config, &
+       &  single_level, thermodynamics, gas, cloud, aerosol, flux)
+
+    if (lhook) call dr_hook('radiation_interface:radiation_run',1,hook_handle)
+
+  end subroutine radiation_run
+
+  !---------------------------------------------------------------------
+  ! Run the radiation scheme according to the configuration in the
+  ! config object. There are ncol profiles of which only istartcol to
+  ! iendcol are to be processed, and there are nlev model levels.  The
+  ! output fluxes are written to the flux object, and all other
+  ! objects contain the input variables.
+  subroutine radiation_run_sw(ncol, nlev, istartcol, iendcol, config, &
+       &  single_level, thermodynamics, gas, cloud, aerosol, flux)
+
+    use parkind1,                 only : jprb
+    use yomhook,                  only : lhook, dr_hook
+
+    use radiation_io,             only : nulout
+    use radiation_config,         only : config_type, &
+         &   IGasModelMonochromatic, IGasModelIFSRRTMG, &
+         &   ISolverMcICA, ISolverSpartacus, ISolverHomogeneous, &
+         &   ISolverTripleclouds
+    use radiation_single_level,   only : single_level_type
+    use radiation_thermodynamics, only : thermodynamics_type
+    use radiation_gas,            only : gas_type
+    use radiation_cloud,          only : cloud_type
+    use radiation_aerosol,        only : aerosol_type
+    use radiation_flux,           only : flux_type
+    use radiation_spartacus_sw,   only : solver_spartacus_sw
+    use radiation_tripleclouds_sw,only : solver_tripleclouds_sw
+    use radiation_mcica_sw,       only : solver_mcica_sw
+    use radiation_cloudless_sw,   only : solver_cloudless_sw
+    use radiation_homogeneous_sw, only : solver_homogeneous_sw
+    use radiation_save,           only : save_radiative_properties
+
+    ! Treatment of gas and hydrometeor optics
+    use radiation_monochromatic,  only : &
+         &   gas_optics_mono         => gas_optics, &
+         &   gas_optics_mono_sw      => gas_optics_sw, &
+         &   gas_optics_mono_lw      => gas_optics_lw, &
+         &   cloud_optics_mono       => cloud_optics, &
+         &   cloud_optics_mono_sw    => cloud_optics_sw, &
+         &   cloud_optics_mono_lw    => cloud_optics_lw, &
+         &   add_aerosol_optics_mono => add_aerosol_optics
+    use radiation_ifs_rrtm,       only : gas_optics, gas_optics_sw
+    use radiation_cloud_optics,   only : cloud_optics, cloud_optics_sw
+    use radiation_aerosol_optics, only : add_aerosol_optics,  &
+                                         add_aerosol_optics_sw
+
+    ! Inputs
+    integer, intent(in) :: ncol               ! number of columns
+    integer, intent(in) :: nlev               ! number of model levels
+    integer, intent(in) :: istartcol, iendcol ! range of columns to process
+    type(config_type),        intent(in)   :: config
+    type(single_level_type),  intent(in)   :: single_level
+    type(thermodynamics_type),intent(in)   :: thermodynamics
+    type(gas_type),           intent(in)   :: gas
+    type(cloud_type),         intent(inout):: cloud
+    type(aerosol_type),       intent(in)   :: aerosol
+    ! Output
+    type(flux_type),          intent(inout):: flux
 
     ! Layer optical depth, single scattering albedo and asymmetry factor of
     ! gases and aerosols at each shortwave g-point
@@ -317,16 +374,6 @@ contains
     ! asymmetry factor of hydrometeors in each shortwave band
     real(jprb), dimension(config%n_bands_sw,nlev,istartcol:iendcol)   :: &
          &  od_sw_cloud, ssa_sw_cloud, g_sw_cloud
-
-    ! The Planck function (emitted flux from a black body) at half
-    ! levels
-    real(jprb), dimension(config%n_g_lw,nlev+1,istartcol:iendcol) :: planck_hl
-
-    ! The longwave emission from and albedo of the surface in each
-    ! longwave g-point; note that these are weighted averages of the
-    ! values from individual tiles
-    real(jprb), dimension(config%n_g_lw, istartcol:iendcol) :: lw_emission
-    real(jprb), dimension(config%n_g_lw, istartcol:iendcol) :: lw_albedo
 
     ! Direct and diffuse shortwave surface albedo in each shortwave
     ! g-point; note that these are weighted averages of the values
@@ -339,12 +386,9 @@ contains
     ! g-points
     real(jprb), dimension(config%n_g_sw,istartcol:iendcol) :: incoming_sw
 
-    character(len=100) :: rad_prop_file_name
-    character(*), parameter :: rad_prop_base_file_name = "radiative_properties"
-
     real(jprb) :: hook_handle
 
-    if (lhook) call dr_hook('radiation_interface:radiation_run',0,hook_handle)
+    if (lhook) call dr_hook('radiation_interface:radiation_run_sw',0,hook_handle)
 
     ! Input arrays arranged in order of increasing pressure /
     ! decreasing height: progress normally
@@ -352,7 +396,6 @@ contains
     ! Extract surface albedos at each gridpoint
     call single_level%get_albedos_sw(istartcol, iendcol, config, &
          &                        sw_albedo_direct, sw_albedo_diffuse)
-    call single_level%get_albedos_lw(istartcol, iendcol, config, lw_albedo)
 
     ! Compute gas absorption optical depth in shortwave and
     ! longwave, shortwave single scattering albedo (i.e. fraction of
@@ -363,17 +406,10 @@ contains
       call gas_optics_mono_sw(ncol,nlev,istartcol,iendcol, config, &
            &  single_level, thermodynamics, gas, od_sw, ssa_sw, &
              &  incoming_sw)
-      call gas_optics_mono_lw(ncol,nlev,istartcol,iendcol, config, &
-           &  single_level, thermodynamics, gas, lw_albedo, &
-           &  od_lw, planck_hl, lw_emission)
     else
       call gas_optics_sw(ncol,nlev,istartcol,iendcol, config, &
            &  single_level, thermodynamics, gas, &
            &  od_sw, ssa_sw, incoming_sw=incoming_sw)
-      call gas_optics_lw(ncol,nlev,istartcol,iendcol, config, &
-             &  single_level, thermodynamics, gas, &
-             &  od_lw,  lw_albedo=lw_albedo, &
-             &  planck_hl=planck_hl, lw_emission=lw_emission)
       end if
 
       if (config%do_clouds) then
@@ -390,16 +426,10 @@ contains
           call cloud_optics_mono_sw(nlev, istartcol, iendcol, &
                &  config, thermodynamics, cloud, &
                &  od_sw_cloud, ssa_sw_cloud, g_sw_cloud)
-          call cloud_optics_mono_lw(nlev, istartcol, iendcol, &
-               &  config, thermodynamics, cloud, &
-               &  od_lw_cloud, ssa_lw_cloud, g_lw_cloud)
         else
           call cloud_optics_sw(nlev, istartcol, iendcol, &
                &  config, thermodynamics, cloud, &
                &  od_sw_cloud, ssa_sw_cloud, g_sw_cloud)
-          call cloud_optics_lw(nlev, istartcol, iendcol, &
-               &  config, thermodynamics, cloud, &
-               &  od_lw_cloud, ssa_lw_cloud, g_lw_cloud)
         end if
       end if ! do_clouds
 
@@ -411,73 +441,31 @@ contains
         else
            call add_aerosol_optics_sw(nlev,istartcol,iendcol, config, thermodynamics, gas, aerosol, &
                                    &  od_sw, ssa_sw, g_sw)
-           call add_aerosol_optics_lw(nlev,istartcol,iendcol, config, thermodynamics, gas, aerosol, &
-                                   &  od_lw, ssa_lw, g_lw)
         end if
       else
         g_sw = 0.0_jprb
-        if (config%do_lw_aerosol_scattering) then
-          ssa_lw = 0.0_jprb
-          g_lw   = 0.0_jprb
-        end if
       end if
 
-      ! For diagnostic purposes, save these intermediate variables to
-      ! a NetCDF file
-      if (config%do_save_radiative_properties) then
-        if (istartcol == 1 .and. iendcol == ncol) then
-          rad_prop_file_name = rad_prop_base_file_name // ".nc"
-        else
-          write(rad_prop_file_name,'(a,a,i4.4,a,i4.4,a)') &
-               &  rad_prop_base_file_name, '_', istartcol, '-',iendcol,'.nc'
-        end if
-        call save_radiative_properties(trim(rad_prop_file_name), &
-             &  nlev, istartcol, iendcol, &
-             &  config, single_level, thermodynamics, cloud, &
-             &  planck_hl, lw_emission, lw_albedo, &
-             &  sw_albedo_direct, sw_albedo_diffuse, incoming_sw, &
-             &  od_lw, ssa_lw, g_lw, od_sw, ssa_sw, g_sw, &
-             &  od_lw_cloud, ssa_lw_cloud, g_lw_cloud, &
-             &  od_sw_cloud, ssa_sw_cloud, g_sw_cloud)
-      end if
-
-      if (config%do_lw) then
-        if (config%iverbose >= 2) then
-          write(nulout,'(a)') 'Computing longwave fluxes'
-        end if
-
-        select case(config%i_solver_lw)
-            case (ISolverMcICA)
-              ! Compute fluxes using the McICA longwave solver
-              call solver_mcica_lw(nlev,istartcol,iendcol, &
-                   &  config, single_level, cloud, &
-                   &  od_lw, ssa_lw, g_lw, od_lw_cloud, ssa_lw_cloud, &
-                   &  g_lw_cloud, planck_hl, lw_emission, lw_albedo, flux)
-            case (ISolverSPARTACUS)
-              ! Compute fluxes using the SPARTACUS longwave solver
-              call solver_spartacus_lw(nlev,istartcol,iendcol, &
-                   &  config, thermodynamics, cloud, &
-                   &  od_lw, ssa_lw, g_lw, od_lw_cloud, ssa_lw_cloud, g_lw_cloud, &
-                   &  planck_hl, lw_emission, lw_albedo, flux)
-            case (ISolverTripleclouds)
-              ! Compute fluxes using the Tripleclouds longwave solver
-              call solver_tripleclouds_lw(nlev,istartcol,iendcol, &
-                   &  config, cloud, &
-                   &  od_lw, ssa_lw, g_lw, od_lw_cloud, ssa_lw_cloud, g_lw_cloud, &
-                   &  planck_hl, lw_emission, lw_albedo, flux)
-            case (ISolverHomogeneous)
-              ! Compute fluxes using the homogeneous solver
-              call solver_homogeneous_lw(nlev,istartcol,iendcol, &
-                   &  config, cloud, &
-                   &  od_lw, ssa_lw, g_lw, od_lw_cloud, ssa_lw_cloud, &
-                   &  g_lw_cloud, planck_hl, lw_emission, lw_albedo, flux)
-            case default
-              ! Compute fluxes using the cloudless solver
-              call solver_cloudless_lw(nlev,istartcol,iendcol, &
-                   &  config, od_lw, ssa_lw, g_lw, &
-                   &  planck_hl, lw_emission, lw_albedo, flux)
-        end select
-      end if
+!      TODO: fix this part
+!
+!      ! For diagnostic purposes, save these intermediate variables to
+!      ! a NetCDF file
+!      if (config%do_save_radiative_properties) then
+!        if (istartcol == 1 .and. iendcol == ncol) then
+!          rad_prop_file_name = rad_prop_base_file_name // ".nc"
+!        else
+!          write(rad_prop_file_name,'(a,a,i4.4,a,i4.4,a)') &
+!               &  rad_prop_base_file_name, '_', istartcol, '-',iendcol,'.nc'
+!        end if
+!        call save_radiative_properties(trim(rad_prop_file_name), &
+!             &  nlev, istartcol, iendcol, &
+!             &  config, single_level, thermodynamics, cloud, &
+!             &  planck_hl, lw_emission, lw_albedo, &
+!             &  sw_albedo_direct, sw_albedo_diffuse, incoming_sw, &
+!             &  od_lw, ssa_lw, g_lw, od_sw, ssa_sw, g_sw, &
+!             &  od_lw_cloud, ssa_lw_cloud, g_lw_cloud, &
+!             &  od_sw_cloud, ssa_sw_cloud, g_sw_cloud)
+!      end if
 
       if (config%do_sw) then
         if (config%iverbose >= 2) then
@@ -524,13 +512,222 @@ contains
 
       ! Store surface downwelling fluxes in bands from fluxes in g
       ! points
-      call flux%calc_surface_spectral(config, istartcol, iendcol)
+      call flux%calc_surface_spectral_sw(config, istartcol, iendcol)
 
+    if (lhook) call dr_hook('radiation_interface:radiation_run_sw',1,hook_handle)
 
-    if (lhook) call dr_hook('radiation_interface:radiation_run',1,hook_handle)
+  end subroutine radiation_run_sw
 
-  end subroutine radiation_run
+  !---------------------------------------------------------------------
+  ! Run the radiation scheme according to the configuration in the
+  ! config object. There are ncol profiles of which only istartcol to
+  ! iendcol are to be processed, and there are nlev model levels.  The
+  ! output fluxes are written to the flux object, and all other
+  ! objects contain the input variables.
+  subroutine radiation_run_lw(ncol, nlev, istartcol, iendcol, config, &
+       &  single_level, thermodynamics, gas, cloud, aerosol, flux)
 
+    use parkind1,                 only : jprb
+    use yomhook,                  only : lhook, dr_hook
+
+    use radiation_io,             only : nulout
+    use radiation_config,         only : config_type, &
+         &   IGasModelMonochromatic, IGasModelIFSRRTMG, &
+         &   ISolverMcICA, ISolverSpartacus, ISolverHomogeneous, &
+         &   ISolverTripleclouds
+    use radiation_single_level,   only : single_level_type
+    use radiation_thermodynamics, only : thermodynamics_type
+    use radiation_gas,            only : gas_type
+    use radiation_cloud,          only : cloud_type
+    use radiation_aerosol,        only : aerosol_type
+    use radiation_flux,           only : flux_type
+    use radiation_spartacus_lw,   only : solver_spartacus_lw
+    use radiation_tripleclouds_lw,only : solver_tripleclouds_lw
+    use radiation_mcica_lw,       only : solver_mcica_lw
+    use radiation_cloudless_lw,   only : solver_cloudless_lw
+    use radiation_homogeneous_lw, only : solver_homogeneous_lw
+    use radiation_save,           only : save_radiative_properties
+
+    ! Treatment of gas and hydrometeor optics
+    use radiation_monochromatic,  only : &
+         &   gas_optics_mono_lw      => gas_optics_lw, &
+         &   cloud_optics_mono       => cloud_optics, &
+         &   cloud_optics_mono_lw    => cloud_optics_lw, &
+         &   add_aerosol_optics_mono => add_aerosol_optics
+    use radiation_ifs_rrtm,       only : gas_optics_lw
+    use radiation_cloud_optics,   only : cloud_optics_lw
+    use radiation_aerosol_optics, only : add_aerosol_optics_lw
+
+    ! Inputs
+    integer, intent(in) :: ncol               ! number of columns
+    integer, intent(in) :: nlev               ! number of model levels
+    integer, intent(in) :: istartcol, iendcol ! range of columns to process
+    type(config_type),        intent(in)   :: config
+    type(single_level_type),  intent(in)   :: single_level
+    type(thermodynamics_type),intent(in)   :: thermodynamics
+    type(gas_type),           intent(in)   :: gas
+    type(cloud_type),         intent(inout):: cloud
+    type(aerosol_type),       intent(in)   :: aerosol
+    ! Output
+    type(flux_type),          intent(inout):: flux
+
+    ! Local variables
+
+    ! Layer optical depth, single scattering albedo and asymmetry factor of
+    ! gases and aerosols at each longwave g-point, where the latter
+    ! two variables are only defined if aerosol longwave scattering is
+    ! enabled (otherwise both are treated as zero).
+    real(jprb), dimension(config%n_g_lw,nlev,istartcol:iendcol) :: od_lw
+    real(jprb), dimension(config%n_g_lw_if_scattering,nlev,istartcol:iendcol) :: &
+         &  ssa_lw, g_lw
+
+    ! Layer in-cloud optical depth, single scattering albedo and
+    ! asymmetry factor of hydrometeors in each longwave band, where
+    ! the latter two variables are only defined if hydrometeor
+    ! longwave scattering is enabled (otherwise both are treated as
+    ! zero).
+    real(jprb), dimension(config%n_bands_lw,nlev,istartcol:iendcol) :: od_lw_cloud
+    real(jprb), dimension(config%n_bands_lw_if_scattering,nlev,istartcol:iendcol) :: &
+         &  ssa_lw_cloud, g_lw_cloud
+
+    ! The Planck function (emitted flux from a black body) at half
+    ! levels
+    real(jprb), dimension(config%n_g_lw,nlev+1,istartcol:iendcol) :: planck_hl
+
+    ! The longwave emission from and albedo of the surface in each
+    ! longwave g-point; note that these are weighted averages of the
+    ! values from individual tiles
+    real(jprb), dimension(config%n_g_lw, istartcol:iendcol) :: lw_emission
+    real(jprb), dimension(config%n_g_lw, istartcol:iendcol) :: lw_albedo
+
+    real(jprb) :: hook_handle
+
+    if (lhook) call dr_hook('radiation_interface:radiation_run',0,hook_handle)
+
+    ! Input arrays arranged in order of increasing pressure /
+    ! decreasing height: progress normally
+
+    ! Extract surface albedos at each gridpoint
+    call single_level%get_albedos_lw(istartcol, iendcol, config, lw_albedo)
+
+    ! Compute gas absorption optical depth in shortwave and
+    ! longwave, shortwave single scattering albedo (i.e. fraction of
+    ! extinction due to Rayleigh scattering), Planck functions and
+    ! incoming shortwave flux at each g-point, for the specified
+    ! range of atmospheric columns
+    if (config%i_gas_model == IGasModelMonochromatic) then
+      call gas_optics_mono_lw(ncol,nlev,istartcol,iendcol, config, &
+           &  single_level, thermodynamics, gas, lw_albedo, &
+           &  od_lw, planck_hl, lw_emission)
+    else
+      call gas_optics_lw(ncol,nlev,istartcol,iendcol, config, &
+             &  single_level, thermodynamics, gas, &
+             &  od_lw,  lw_albedo=lw_albedo, &
+             &  planck_hl=planck_hl, lw_emission=lw_emission)
+      end if
+
+      if (config%do_clouds) then
+        ! Crop the cloud fraction to remove clouds that have too small
+        ! a fraction or water content; after this, we can safely
+        ! assume that a cloud is present if cloud%fraction > 0.0.
+        call cloud%crop_cloud_fraction(istartcol, iendcol, &
+             &            config%cloud_fraction_threshold, &
+             &            config%cloud_mixing_ratio_threshold)
+
+        ! Compute hydrometeor absorption/scattering properties in each
+        ! shortwave and longwave band
+        if (config%i_gas_model == IGasModelMonochromatic) then
+          call cloud_optics_mono_lw(nlev, istartcol, iendcol, &
+               &  config, thermodynamics, cloud, &
+               &  od_lw_cloud, ssa_lw_cloud, g_lw_cloud)
+        else
+          call cloud_optics_lw(nlev, istartcol, iendcol, &
+               &  config, thermodynamics, cloud, &
+               &  od_lw_cloud, ssa_lw_cloud, g_lw_cloud)
+        end if
+      end if ! do_clouds
+
+      if (config%use_aerosols) then
+        if (config%i_gas_model == IGasModelMonochromatic) then
+!          call add_aerosol_optics_mono(nlev,istartcol,iendcol, &
+!               &  config, thermodynamics, gas, aerosol, &
+!               &  od_lw, ssa_lw, g_lw, od_sw, ssa_sw, g_sw)
+        else
+           call add_aerosol_optics_lw(nlev,istartcol,iendcol, config, thermodynamics, gas, aerosol, &
+                                   &  od_lw, ssa_lw, g_lw)
+        end if
+      else
+        if (config%do_lw_aerosol_scattering) then
+          ssa_lw = 0.0_jprb
+          g_lw   = 0.0_jprb
+        end if
+      end if
+
+!      TODO: fix this
+!      ! For diagnostic purposes, save these intermediate variables to
+!      ! a NetCDF file
+!      if (config%do_save_radiative_properties) then
+!        if (istartcol == 1 .and. iendcol == ncol) then
+!          rad_prop_file_name = rad_prop_base_file_name // ".nc"
+!        else
+!          write(rad_prop_file_name,'(a,a,i4.4,a,i4.4,a)') &
+!               &  rad_prop_base_file_name, '_', istartcol, '-',iendcol,'.nc'
+!        end if
+!        call save_radiative_properties(trim(rad_prop_file_name), &
+!             &  nlev, istartcol, iendcol, &
+!             &  config, single_level, thermodynamics, cloud, &
+!             &  planck_hl, lw_emission, lw_albedo, &
+!             &  sw_albedo_direct, sw_albedo_diffuse, incoming_sw, &
+!             &  od_lw, ssa_lw, g_lw, od_sw, ssa_sw, g_sw, &
+!             &  od_lw_cloud, ssa_lw_cloud, g_lw_cloud, &
+!             &  od_sw_cloud, ssa_sw_cloud, g_sw_cloud)
+!      end if
+
+      if (config%do_lw) then
+        if (config%iverbose >= 2) then
+          write(nulout,'(a)') 'Computing longwave fluxes'
+        end if
+
+        select case(config%i_solver_lw)
+            case (ISolverMcICA)
+              ! Compute fluxes using the McICA longwave solver
+              call solver_mcica_lw(nlev,istartcol,iendcol, &
+                   &  config, single_level, cloud, &
+                   &  od_lw, ssa_lw, g_lw, od_lw_cloud, ssa_lw_cloud, &
+                   &  g_lw_cloud, planck_hl, lw_emission, lw_albedo, flux)
+            case (ISolverSPARTACUS)
+              ! Compute fluxes using the SPARTACUS longwave solver
+              call solver_spartacus_lw(nlev,istartcol,iendcol, &
+                   &  config, thermodynamics, cloud, &
+                   &  od_lw, ssa_lw, g_lw, od_lw_cloud, ssa_lw_cloud, g_lw_cloud, &
+                   &  planck_hl, lw_emission, lw_albedo, flux)
+            case (ISolverTripleclouds)
+              ! Compute fluxes using the Tripleclouds longwave solver
+              call solver_tripleclouds_lw(nlev,istartcol,iendcol, &
+                   &  config, cloud, &
+                   &  od_lw, ssa_lw, g_lw, od_lw_cloud, ssa_lw_cloud, g_lw_cloud, &
+                   &  planck_hl, lw_emission, lw_albedo, flux)
+            case (ISolverHomogeneous)
+              ! Compute fluxes using the homogeneous solver
+              call solver_homogeneous_lw(nlev,istartcol,iendcol, &
+                   &  config, cloud, &
+                   &  od_lw, ssa_lw, g_lw, od_lw_cloud, ssa_lw_cloud, &
+                   &  g_lw_cloud, planck_hl, lw_emission, lw_albedo, flux)
+            case default
+              ! Compute fluxes using the cloudless solver
+              call solver_cloudless_lw(nlev,istartcol,iendcol, &
+                   &  config, od_lw, ssa_lw, g_lw, &
+                   &  planck_hl, lw_emission, lw_albedo, flux)
+        end select
+      end if
+
+      ! Store surface downwelling fluxes in bands from fluxes in g
+      ! points
+      call flux%calc_surface_spectral_lw(config, istartcol, iendcol)
+
+    if (lhook) call dr_hook('radiation_interface:radiation_run_lw',1,hook_handle)
+
+  end subroutine radiation_run_lw
 
   !---------------------------------------------------------------------
   ! If the input arrays are arranged in order of decreasing pressure /
