@@ -68,9 +68,9 @@ contains
 
     integer, intent(in) :: ng, nlev, istartcol, iendcol
     ! Sngle scattering albedo and asymmetry factor:
-    real(jprb), intent(in),  dimension(:,:,:) :: ssa, g
-    logical, intent(in), dimension(:,:) :: mask
-    real(jprb), intent(out), dimension(:,:,:) :: gamma1, gamma2
+    real(jprb), intent(in),  dimension(ng,nlev,istartcol:iendcol) :: ssa, g
+    logical, intent(in), dimension(nlev,istartcol:iendcol) :: mask
+    real(jprb), intent(out), dimension(ng,nlev,istartcol:iendcol) :: gamma1, gamma2
 
     real(jprb) :: factor
 

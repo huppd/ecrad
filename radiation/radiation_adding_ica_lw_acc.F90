@@ -37,7 +37,7 @@ contains
     integer, intent(in) :: nlev, istartcol, iendcol ! number of levels
 
     ! where to do this computation
-    logical, intent(in) :: mask(:)
+    logical, intent(in) :: mask(istartcol:iendcol)
 
     ! Surface emission (W m-2) and albedo
     real(jprb), intent(in),  dimension(ng, istartcol:iendcol) :: emission_surf, albedo_surf
@@ -157,7 +157,7 @@ contains
     integer, intent(in) :: istartcol
     integer, intent(in) :: iendcol
 
-    logical, intent(in) :: mask(:)
+    logical, intent(in) :: mask(istartcol:iendcol)
 
     ! Surface emission (W m-2) and albedo
     real(jprb), intent(in),  dimension(ng, istartcol:iendcol) :: emission_surf, albedo_surf
