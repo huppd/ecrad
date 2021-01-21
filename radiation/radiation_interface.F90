@@ -212,7 +212,9 @@ contains
          &   add_aerosol_optics_mono => add_aerosol_optics
     use radiation_ifs_rrtm,       only : gas_optics, gas_optics_sw, gas_optics_lw
     use radiation_cloud_optics,   only : cloud_optics, cloud_optics_sw, cloud_optics_lw
-    use radiation_aerosol_optics, only : add_aerosol_optics
+    use radiation_aerosol_optics, only : add_aerosol_optics,  &
+                                         add_aerosol_optics_sw, &
+                                         add_aerosol_optics_lw
 
     ! Inputs
     integer, intent(in) :: ncol               ! number of columns
