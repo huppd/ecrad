@@ -22,6 +22,8 @@ def cli(ref_file, cur_file):
     )
 
     cur = cur.sort_values(by=["time"], ascending=False)
+    cur.rename(index=lambda s: s.replace("_lr", ""), inplace=True)
+
     ref = ref.sort_values(by=["time"], ascending=False)
 
     selection = set(
@@ -38,9 +40,9 @@ def cli(ref_file, cur_file):
         ]
     )
 
-    selection = selection.intersection(set(cur.index)).intersection(set(ref.index))
-
-    print(selection)
+    selection = list(
+        selection.intersection(set(cur.index)).intersection(set(ref.index))
+    )
 
     a = cur.loc[selection, "time"].values
     b = ref.loc[selection, "time"].values
@@ -50,6 +52,9 @@ def cli(ref_file, cur_file):
     fig, ax = plt.subplots(ncols=1, nrows=1)
 
     ax.barh(range(len(selection)), diff)
+
+    labels = list(map(lambda s: s.split(":")[-1], selection))
+    ax.set_yticklabels(labels)
 
     plt.show()
 
