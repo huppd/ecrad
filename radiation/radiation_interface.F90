@@ -357,9 +357,10 @@ contains
 !               &  config, thermodynamics, gas, aerosol, & 
 !               &  od_lw, ssa_lw, g_lw, od_sw, ssa_sw, g_sw)
         else
-          call add_aerosol_optics(nlev,istartcol,iendcol, &
-               &  config, thermodynamics, gas, aerosol, & 
-               &  od_lw, ssa_lw, g_lw, od_sw, ssa_sw, g_sw)
+           call add_aerosol_optics_sw(nlev,istartcol,iendcol, config, thermodynamics, gas, aerosol, &
+                                   &  od_sw, ssa_sw, g_sw)
+           call add_aerosol_optics_lw(nlev,istartcol,iendcol, config, thermodynamics, gas, aerosol, &
+                                   &  od_lw, ssa_lw, g_lw)
         end if
       else
         g_sw = 0.0_jprb
