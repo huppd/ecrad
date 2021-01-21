@@ -178,6 +178,66 @@ contains
     use parkind1,                 only : jprb
     use yomhook,                  only : lhook, dr_hook
 
+    use radiation_config,         only : config_type
+    use radiation_single_level,   only : single_level_type
+    use radiation_thermodynamics, only : thermodynamics_type
+    use radiation_gas,            only : gas_type
+    use radiation_cloud,          only : cloud_type
+    use radiation_aerosol,        only : aerosol_type
+    use radiation_flux,           only : flux_type
+
+    ! Inputs
+    integer, intent(in) :: ncol               ! number of columns
+    integer, intent(in) :: nlev               ! number of model levels
+    integer, intent(in) :: istartcol, iendcol ! range of columns to process
+    type(config_type),        intent(in)   :: config
+    type(single_level_type),  intent(in)   :: single_level
+    type(thermodynamics_type),intent(in)   :: thermodynamics
+    type(gas_type),           intent(in)   :: gas
+    type(cloud_type),         intent(inout):: cloud
+    type(aerosol_type),       intent(in)   :: aerosol
+    ! Output
+    type(flux_type),          intent(inout):: flux
+
+    real(jprb) :: hook_handle
+
+    if (lhook) call dr_hook('radiation_interface:radiation',0,hook_handle)
+
+    if (thermodynamics%pressure_hl(istartcol,2) &
+         &  < thermodynamics%pressure_hl(istartcol,1)) then
+      ! Input arrays are arranged in order of decreasing pressure /
+      ! increasing height: the following subroutine reverses them,
+      ! call the radiation scheme and then reverses the returned
+      ! fluxes
+      call radiation_reverse(ncol, nlev, istartcol, iendcol, config, &
+           &  single_level, thermodynamics, gas, cloud, aerosol, flux)
+    else
+      ! Input arrays arranged in order of increasing pressure /
+      ! decreasing height: progress normally
+      call radiation_run(ncol, nlev, istartcol, iendcol, config, &
+       &  single_level, thermodynamics, gas, cloud, aerosol, flux)
+    end if
+    
+    if (lhook) call dr_hook('radiation_interface:radiation',1,hook_handle)
+
+  end subroutine radiation
+
+  !---------------------------------------------------------------------
+  ! Run the radiation scheme according to the configuration in the
+  ! config object. There are ncol profiles of which only istartcol to
+  ! iendcol are to be processed, and there are nlev model levels.  The
+  ! output fluxes are written to the flux object, and all other
+  ! objects contain the input variables.  The variables may be defined
+  ! either in order of increasing or decreasing pressure, but if in
+  ! order of decreasing pressure then radiation_reverse will be called
+  ! to reverse the order for the computation and then reverse the
+  ! order of the output fluxes to match the inputs.
+  subroutine radiation_run(ncol, nlev, istartcol, iendcol, config, &
+       &  single_level, thermodynamics, gas, cloud, aerosol, flux)
+
+    use parkind1,                 only : jprb
+    use yomhook,                  only : lhook, dr_hook
+
     use radiation_io,             only : nulout
     use radiation_config,         only : config_type, &
          &   IGasModelMonochromatic, IGasModelIFSRRTMG, &
@@ -201,7 +261,7 @@ contains
     use radiation_homogeneous_lw, only : solver_homogeneous_lw
     use radiation_save,           only : save_radiative_properties
 
-    ! Treatment of gas and hydrometeor optics 
+    ! Treatment of gas and hydrometeor optics
     use radiation_monochromatic,  only : &
          &   gas_optics_mono         => gas_optics, &
          &   gas_optics_mono_sw      => gas_optics_sw, &
@@ -284,43 +344,33 @@ contains
 
     real(jprb) :: hook_handle
 
-    if (lhook) call dr_hook('radiation_interface:radiation',0,hook_handle)
+    if (lhook) call dr_hook('radiation_interface:radiation_run',0,hook_handle)
 
-    if (thermodynamics%pressure_hl(istartcol,2) &
-         &  < thermodynamics%pressure_hl(istartcol,1)) then
-      ! Input arrays are arranged in order of decreasing pressure /
-      ! increasing height: the following subroutine reverses them,
-      ! call the radiation scheme and then reverses the returned
-      ! fluxes
-      call radiation_reverse(ncol, nlev, istartcol, iendcol, config, &
-           &  single_level, thermodynamics, gas, cloud, aerosol, flux)
-    else
+    ! Input arrays arranged in order of increasing pressure /
+    ! decreasing height: progress normally
 
-      ! Input arrays arranged in order of increasing pressure /
-      ! decreasing height: progress normally
+    ! Extract surface albedos at each gridpoint
+    call single_level%get_albedos_sw(istartcol, iendcol, config, &
+         &                        sw_albedo_direct, sw_albedo_diffuse)
+    call single_level%get_albedos_lw(istartcol, iendcol, config, lw_albedo)
 
-      ! Extract surface albedos at each gridpoint
-      call single_level%get_albedos_sw(istartcol, iendcol, config, &
-           &                        sw_albedo_direct, sw_albedo_diffuse)
-      call single_level%get_albedos_lw(istartcol, iendcol, config, lw_albedo)
-
-      ! Compute gas absorption optical depth in shortwave and
-      ! longwave, shortwave single scattering albedo (i.e. fraction of
-      ! extinction due to Rayleigh scattering), Planck functions and
-      ! incoming shortwave flux at each g-point, for the specified
-      ! range of atmospheric columns
-      if (config%i_gas_model == IGasModelMonochromatic) then
-        call gas_optics_mono_sw(ncol,nlev,istartcol,iendcol, config, &
-             &  single_level, thermodynamics, gas, od_sw, ssa_sw, &
+    ! Compute gas absorption optical depth in shortwave and
+    ! longwave, shortwave single scattering albedo (i.e. fraction of
+    ! extinction due to Rayleigh scattering), Planck functions and
+    ! incoming shortwave flux at each g-point, for the specified
+    ! range of atmospheric columns
+    if (config%i_gas_model == IGasModelMonochromatic) then
+      call gas_optics_mono_sw(ncol,nlev,istartcol,iendcol, config, &
+           &  single_level, thermodynamics, gas, od_sw, ssa_sw, &
              &  incoming_sw)
-        call gas_optics_mono_lw(ncol,nlev,istartcol,iendcol, config, &
-             &  single_level, thermodynamics, gas, lw_albedo, &
-             &  od_lw, planck_hl, lw_emission)
-      else
-        call gas_optics_sw(ncol,nlev,istartcol,iendcol, config, &
-             &  single_level, thermodynamics, gas, &
-             &  od_sw, ssa_sw, incoming_sw=incoming_sw)
-        call gas_optics_lw(ncol,nlev,istartcol,iendcol, config, &
+      call gas_optics_mono_lw(ncol,nlev,istartcol,iendcol, config, &
+           &  single_level, thermodynamics, gas, lw_albedo, &
+           &  od_lw, planck_hl, lw_emission)
+    else
+      call gas_optics_sw(ncol,nlev,istartcol,iendcol, config, &
+           &  single_level, thermodynamics, gas, &
+           &  od_sw, ssa_sw, incoming_sw=incoming_sw)
+      call gas_optics_lw(ncol,nlev,istartcol,iendcol, config, &
              &  single_level, thermodynamics, gas, &
              &  od_lw,  lw_albedo=lw_albedo, &
              &  planck_hl=planck_hl, lw_emission=lw_emission)
@@ -345,7 +395,7 @@ contains
                &  od_lw_cloud, ssa_lw_cloud, g_lw_cloud)
         else
           call cloud_optics_sw(nlev, istartcol, iendcol, &
-               &  config, thermodynamics, cloud, & 
+               &  config, thermodynamics, cloud, &
                &  od_sw_cloud, ssa_sw_cloud, g_sw_cloud)
           call cloud_optics_lw(nlev, istartcol, iendcol, &
                &  config, thermodynamics, cloud, &
@@ -356,7 +406,7 @@ contains
       if (config%use_aerosols) then
         if (config%i_gas_model == IGasModelMonochromatic) then
 !          call add_aerosol_optics_mono(nlev,istartcol,iendcol, &
-!               &  config, thermodynamics, gas, aerosol, & 
+!               &  config, thermodynamics, gas, aerosol, &
 !               &  od_lw, ssa_lw, g_lw, od_sw, ssa_sw, g_sw)
         else
            call add_aerosol_optics_sw(nlev,istartcol,iendcol, config, thermodynamics, gas, aerosol, &
@@ -476,11 +526,10 @@ contains
       ! points
       call flux%calc_surface_spectral(config, istartcol, iendcol)
 
-    end if
-    
-    if (lhook) call dr_hook('radiation_interface:radiation',1,hook_handle)
 
-  end subroutine radiation
+    if (lhook) call dr_hook('radiation_interface:radiation_run',1,hook_handle)
+
+  end subroutine radiation_run
 
 
   !---------------------------------------------------------------------
@@ -505,7 +554,7 @@ contains
 
     ! Inputs
     integer, intent(in) :: ncol               ! number of columns
-    integer, intent(in) :: nlev               ! number of model levels
+    integer, intent(in) :: nlev               ! number of model levels74
     integer, intent(in) :: istartcol, iendcol ! range of columns to process
     type(config_type),        intent(in) :: config
     type(single_level_type),  intent(in) :: single_level
@@ -584,7 +633,7 @@ contains
     end if
 
     ! Run radiation scheme on reversed profiles
-    call radiation(ncol, nlev,istartcol,iendcol, &
+    call radiation_run(ncol, nlev,istartcol,iendcol, &
          &  config, single_level, thermodynamics_rev, gas_rev, &
          &  cloud_rev, aerosol_rev, flux_rev)
 
