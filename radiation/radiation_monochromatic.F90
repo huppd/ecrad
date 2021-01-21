@@ -22,7 +22,7 @@ module radiation_monochromatic
   implicit none
 
   public  :: setup_gas_optics, gas_optics, gas_optics_lw, gas_optics_sw, set_gas_units, &
-       &     setup_cloud_optics, cloud_optics,            &
+       &     setup_cloud_optics, cloud_optics, cloud_optics_sw, cloud_optics_lw, &
        &     setup_aerosol_optics, add_aerosol_optics
 
 contains
@@ -365,6 +365,42 @@ contains
     real(jprb), dimension(config%n_g_sw,nlev,istartcol:iendcol), intent(out) :: &
          &   od_sw_cloud, ssa_sw_cloud, g_sw_cloud
 
+    call cloud_optics_sw(nlev,istartcol,iendcol, &
+       &   config, thermodynamics, cloud, &
+       &   od_sw_cloud, ssa_sw_cloud, g_sw_cloud)
+    call cloud_optics_lw(nlev,istartcol,iendcol, &
+       &   config, thermodynamics, cloud, &
+       &   od_lw_cloud, ssa_lw_cloud, g_lw_cloud)
+  end subroutine cloud_optics
+
+  !---------------------------------------------------------------------
+  ! Compute cloud optical depth, single-scattering albedo and
+  ! g factor in the longwave and shortwave
+  subroutine cloud_optics_sw(nlev,istartcol,iendcol, &
+       &   config, thermodynamics, cloud, &
+       &   od_sw_cloud, ssa_sw_cloud, g_sw_cloud)
+
+    use parkind1,                 only : jprb
+    use radiation_config,         only : config_type
+    use radiation_thermodynamics, only : thermodynamics_type
+    use radiation_cloud,          only : cloud_type
+    use radiation_constants,      only : AccelDueToGravity, &
+         &   DensityLiquidWater, DensitySolidIce
+
+    ! Inputs
+    integer, intent(in) :: nlev               ! number of model levels
+    integer, intent(in) :: istartcol, iendcol ! range of columns to process
+    type(config_type), intent(in) :: config
+    type(thermodynamics_type),intent(in) :: thermodynamics
+    type(cloud_type),   intent(in) :: cloud
+
+    ! Outputs
+
+    ! Layer optical depth, single scattering albedo and g factor of
+    ! clouds in each shortwave band
+    real(jprb), dimension(config%n_g_sw,nlev,istartcol:iendcol), intent(out) :: &
+         &   od_sw_cloud, ssa_sw_cloud, g_sw_cloud
+
     ! In-cloud liquid and ice water path in a layer, in kg m-2
     real(jprb), dimension(nlev,istartcol:iendcol) :: lwp_kg_m2, iwp_kg_m2
 
@@ -392,22 +428,17 @@ contains
     end do
 
     ! Geometric optics approximation: particles treated as much larger
-    ! than the wavelength in both shortwave and longwave
+    ! than the wavelength in both shortwave
     od_sw_cloud(1,:,:) &
          &   = (3.0_jprb/(2.0_jprb*DensityLiquidWater)) &
          &   * lwp_kg_m2 / transpose(cloud%re_liq(istartcol:iendcol,:)) &
          &   + (3.0_jprb / (2.0_jprb * DensitySolidIce)) &
          &   * iwp_kg_m2 / transpose(cloud%re_ice(istartcol:iendcol,:))
-    od_lw_cloud(1,:,:) = lwp_kg_m2 * 137.22_jprb &
-         &   + (3.0_jprb / (2.0_jprb * DensitySolidIce)) &
-         &   * iwp_kg_m2 / transpose(cloud%re_ice(istartcol:iendcol,:))
 
     if (config%iverbose >= 4) then
       do jcol = istartcol,iendcol
-        write(*,'(a,i0,a,f7.3,a,f7.3)') 'Profile ', jcol, ': shortwave optical depth = ', &
-             &  sum(od_sw_cloud(1,:,jcol)*cloud%fraction(jcol,:)), &
-             &  ', longwave optical depth = ', &
-             &  sum(od_lw_cloud(1,:,jcol)*cloud%fraction(jcol,:))
+        write(*,'(a,i0,a,f7.3)') 'Profile ', jcol, ': shortwave optical depth = ', &
+             &  sum(od_sw_cloud(1,:,jcol)*cloud%fraction(jcol,:))
         !    print *, 'LWP = ', sum(lwp_kg_m2(:,istartcol)*cloud%fraction(istartcol,:))
       end do
     end if
@@ -418,6 +449,81 @@ contains
     ! In-place delta-Eddington scaling
     call delta_eddington(od_sw_cloud, ssa_sw_cloud, g_sw_cloud)
 
+  end subroutine cloud_optics_sw
+
+  !---------------------------------------------------------------------
+  ! Compute cloud optical depth, single-scattering albedo and
+  ! g factor in the longwave and shortwave
+  subroutine cloud_optics_lw(nlev,istartcol,iendcol, &
+       &   config, thermodynamics, cloud, &
+       &   od_lw_cloud, ssa_lw_cloud, g_lw_cloud)
+
+    use parkind1,                 only : jprb
+    use radiation_config,         only : config_type
+    use radiation_thermodynamics, only : thermodynamics_type
+    use radiation_cloud,          only : cloud_type
+    use radiation_constants,      only : AccelDueToGravity, &
+         &   DensityLiquidWater, DensitySolidIce
+
+    ! Inputs
+    integer, intent(in) :: nlev               ! number of model levels
+    integer, intent(in) :: istartcol, iendcol ! range of columns to process
+    type(config_type), intent(in) :: config
+    type(thermodynamics_type),intent(in) :: thermodynamics
+    type(cloud_type),   intent(in) :: cloud
+
+    ! Outputs
+
+    ! Layer optical depth, single scattering albedo and g factor of
+    ! clouds in each longwave band, where the latter two
+    ! variables are only defined if cloud longwave scattering is
+    ! enabled (otherwise both are treated as zero).
+    real(jprb), dimension(config%n_bands_lw,nlev,istartcol:iendcol), intent(out) :: &
+         &   od_lw_cloud
+    real(jprb), dimension(config%n_bands_lw_if_scattering,nlev,istartcol:iendcol), &
+         &   intent(out) :: ssa_lw_cloud, g_lw_cloud
+
+    ! In-cloud liquid and ice water path in a layer, in kg m-2
+    real(jprb), dimension(nlev,istartcol:iendcol) :: lwp_kg_m2, iwp_kg_m2
+
+    integer  :: jlev, jcol
+
+    ! Factor to convert from gridbox-mean mass mixing ratio to
+    ! in-cloud water path
+    real(jprb) :: factor
+
+    ! Convert cloud mixing ratio into liquid and ice water path
+    ! in each layer
+    do jlev = 1, nlev
+      do jcol = istartcol, iendcol
+        ! Factor to convert from gridbox-mean mass mixing ratio to
+        ! in-cloud water path involves the pressure difference in
+        ! Pa, acceleration due to gravity and cloud fraction
+        ! adjusted to avoid division by zero.
+        factor = ( thermodynamics%pressure_hl(jcol,jlev+1)    &
+             &    -thermodynamics%pressure_hl(jcol,jlev  )  ) &
+             &   / (AccelDueToGravity &
+             &   * max(epsilon(1.0_jprb), cloud%fraction(jcol,jlev)))
+        lwp_kg_m2(jlev,jcol) = factor * cloud%q_liq(jcol,jlev)
+        iwp_kg_m2(jlev,jcol) = factor * cloud%q_ice(jcol,jlev)
+      end do
+    end do
+
+    ! Geometric optics approximation: particles treated as much larger
+    ! than the wavelength in longwave
+    od_lw_cloud(1,:,:) = lwp_kg_m2 * 137.22_jprb &
+         &   + (3.0_jprb / (2.0_jprb * DensitySolidIce)) &
+         &   * iwp_kg_m2 / transpose(cloud%re_ice(istartcol:iendcol,:))
+
+    if (config%iverbose >= 4) then
+      do jcol = istartcol,iendcol
+        write(*,'(a,i0,a,f7.3)') 'Profile ', jcol, &
+             &  ', longwave optical depth = ', &
+             &  sum(od_lw_cloud(1,:,jcol)*cloud%fraction(jcol,:))
+        !    print *, 'LWP = ', sum(lwp_kg_m2(:,istartcol)*cloud%fraction(istartcol,:))
+      end do
+    end if
+
     if (config%do_lw_cloud_scattering) then
       ssa_lw_cloud = config%mono_lw_single_scattering_albedo
       g_lw_cloud   = config%mono_lw_asymmetry_factor
@@ -425,7 +531,7 @@ contains
       call delta_eddington(od_lw_cloud, ssa_lw_cloud, g_lw_cloud)
     end if
 
-  end subroutine cloud_optics
+  end subroutine cloud_optics_lw
 
 
   !---------------------------------------------------------------------

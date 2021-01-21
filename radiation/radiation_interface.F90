@@ -207,6 +207,8 @@ contains
          &   gas_optics_mono_sw      => gas_optics_sw, &
          &   gas_optics_mono_lw      => gas_optics_lw, &
          &   cloud_optics_mono       => cloud_optics, &
+         &   cloud_optics_mono_sw    => cloud_optics_sw, &
+         &   cloud_optics_mono_lw    => cloud_optics_lw, &
          &   add_aerosol_optics_mono => add_aerosol_optics
     use radiation_ifs_rrtm,       only : gas_optics, gas_optics_sw, gas_optics_lw
     use radiation_cloud_optics,   only : cloud_optics, cloud_optics_sw, cloud_optics_lw
@@ -333,10 +335,12 @@ contains
         ! Compute hydrometeor absorption/scattering properties in each
         ! shortwave and longwave band
         if (config%i_gas_model == IGasModelMonochromatic) then
-          call cloud_optics_mono(nlev, istartcol, iendcol, &
+          call cloud_optics_mono_sw(nlev, istartcol, iendcol, &
                &  config, thermodynamics, cloud, &
-               &  od_lw_cloud, ssa_lw_cloud, g_lw_cloud, &
                &  od_sw_cloud, ssa_sw_cloud, g_sw_cloud)
+          call cloud_optics_mono_lw(nlev, istartcol, iendcol, &
+               &  config, thermodynamics, cloud, &
+               &  od_lw_cloud, ssa_lw_cloud, g_lw_cloud)
         else
           call cloud_optics_sw(nlev, istartcol, iendcol, &
                &  config, thermodynamics, cloud, & 
