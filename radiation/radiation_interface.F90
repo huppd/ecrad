@@ -209,7 +209,7 @@ contains
          &   cloud_optics_mono       => cloud_optics, &
          &   add_aerosol_optics_mono => add_aerosol_optics
     use radiation_ifs_rrtm,       only : gas_optics, gas_optics_sw, gas_optics_lw
-    use radiation_cloud_optics,   only : cloud_optics
+    use radiation_cloud_optics,   only : cloud_optics, cloud_optics_sw, cloud_optics_lw
     use radiation_aerosol_optics, only : add_aerosol_optics
 
     ! Inputs
@@ -338,10 +338,12 @@ contains
                &  od_lw_cloud, ssa_lw_cloud, g_lw_cloud, &
                &  od_sw_cloud, ssa_sw_cloud, g_sw_cloud)
         else
-          call cloud_optics(nlev, istartcol, iendcol, &
+          call cloud_optics_sw(nlev, istartcol, iendcol, &
                &  config, thermodynamics, cloud, & 
-               &  od_lw_cloud, ssa_lw_cloud, g_lw_cloud, &
                &  od_sw_cloud, ssa_sw_cloud, g_sw_cloud)
+          call cloud_optics_lw(nlev, istartcol, iendcol, &
+               &  config, thermodynamics, cloud, &
+               &  od_lw_cloud, ssa_lw_cloud, g_lw_cloud)
         end if
       end if ! do_clouds
 
