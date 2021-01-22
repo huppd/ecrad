@@ -387,16 +387,16 @@ contains
 
         if (config%i_solver_lw == ISolverMcICA) then
           ! compare input arrays
-          call pgi_compare(od_sw, "double", size(od_sw), "od_sw", "radiation_interface.f90", "before-solver_mcica_lw", 1)
-          call pgi_compare(ssa_sw, "double", size(ssa_sw), "ssa_sw", "radiation_interface.f90", "before-solver_mcica_lw", 1)
-          call pgi_compare(g_sw, "double", size(g_sw), "g_sw", "radiation_interface.f90", "before-solver_mcica_lw", 1)
-          call pgi_compare(od_sw_cloud, "double", size(od_sw_cloud), "od_sw_cloud", "radiation_interface.f90", "before-solver_mcica_lw", 1)
-          call pgi_compare(ssa_sw_cloud, "double", size(ssa_sw_cloud), "ssa_sw_cloud", "radiation_interface.f90", "before-solver_mcica_lw", 1)
-          call pgi_compare(g_sw_cloud, "double", size(g_sw_cloud), "g_sw_cloud", "radiation_interface.f90", "before-solver_mcica_lw", 1)
-          call pgi_compare(sw_albedo_direct, "double", size(sw_albedo_direct), "sw_albedo_direct", "radiation_interface.f90", "before-solver_mcica_lw", 1)
-          call pgi_compare(sw_albedo_diffuse, "double", size(sw_albedo_diffuse), "sw_albedo_diffuse", "radiation_interface.f90", "before-solver_mcica_lw", 1)
-          call pgi_compare(incoming_sw, "double", size(incoming_sw), "incoming_sw", "radiation_interface.f90", "before-solver_mcica_lw", 1)
-          call flux%compare("radiation_interface.f90", "before-solver_mcica_lw", 1)
+          !call pgi_compare(od_sw, "double", size(od_sw), "od_sw", "radiation_interface.f90", "before-solver_mcica_lw", 1)
+          !call pgi_compare(ssa_sw, "double", size(ssa_sw), "ssa_sw", "radiation_interface.f90", "before-solver_mcica_lw", 1)
+          !call pgi_compare(g_sw, "double", size(g_sw), "g_sw", "radiation_interface.f90", "before-solver_mcica_lw", 1)
+          !call pgi_compare(od_sw_cloud, "double", size(od_sw_cloud), "od_sw_cloud", "radiation_interface.f90", "before-solver_mcica_lw", 1)
+          !call pgi_compare(ssa_sw_cloud, "double", size(ssa_sw_cloud), "ssa_sw_cloud", "radiation_interface.f90", "before-solver_mcica_lw", 1)
+          !call pgi_compare(g_sw_cloud, "double", size(g_sw_cloud), "g_sw_cloud", "radiation_interface.f90", "before-solver_mcica_lw", 1)
+          !call pgi_compare(sw_albedo_direct, "double", size(sw_albedo_direct), "sw_albedo_direct", "radiation_interface.f90", "before-solver_mcica_lw", 1)
+          !call pgi_compare(sw_albedo_diffuse, "double", size(sw_albedo_diffuse), "sw_albedo_diffuse", "radiation_interface.f90", "before-solver_mcica_lw", 1)
+          !call pgi_compare(incoming_sw, "double", size(incoming_sw), "incoming_sw", "radiation_interface.f90", "before-solver_mcica_lw", 1)
+          !call flux%compare("radiation_interface.f90", "before-solver_mcica_lw", 1)
 
           ! Compute fluxes using the McICA longwave solver
           call solver_mcica_lw(nlev,istartcol,iendcol, &
@@ -404,7 +404,7 @@ contains
                &  od_lw, ssa_lw, g_lw, od_lw_cloud, ssa_lw_cloud, &
                &  g_lw_cloud, planck_hl, lw_emission, lw_albedo, flux)
 
-          call flux%compare("radiation_interface.f90", "after-solver_mcica_lw", 2)
+          !call flux%compare("radiation_interface.f90", "after-solver_mcica_lw", 2)
 
         else if (config%i_solver_lw == ISolverSPARTACUS) then
           ! Compute fluxes using the SPARTACUS longwave solver
