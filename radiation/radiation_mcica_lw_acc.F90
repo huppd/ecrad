@@ -387,23 +387,20 @@ contains
       end if
     end do
     if (config%do_lw_derivatives) then
+      call calc_lw_derivatives_ica(ng, nlev, istartcol, iendcol, mask_1d, transmittance(:,:,:), flux_up(:,nlev+1,:), &
+           &                       flux%lw_derivatives)
       ! Loop through columns
+      mask_1d = .FALSE.
       do jcol = istartcol,iendcol
-        if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
-          call calc_lw_derivatives_ica(ng, nlev, jcol, transmittance(:,:,jcol), flux_up(:,nlev+1,jcol), &
-               &                       flux%lw_derivatives)
-        end if
+       if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
+         if (total_cloud_cover(jcol) < 1.0_jprb - config%cloud_fraction_threshold) then
+           mask_1d(jcol) = .TRUE.
+         end if
+       end if
       end do
-      ! Loop through columns
-      do jcol = istartcol,iendcol
-        if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
-          if (total_cloud_cover(jcol) < 1.0_jprb - config%cloud_fraction_threshold) then
-            ! Modify the existing derivative with the contribution from the clear sky
-            call modify_lw_derivatives_ica(ng, nlev, jcol, trans_clear(:,:,jcol), flux_up_clear(:,nlev+1,jcol), &
-                 &                         1.0_jprb-total_cloud_cover(jcol), flux%lw_derivatives)
-          end if
-        end if
-      end do
+      ! Modify the existing derivative with the contribution from the clear sky
+      call modify_lw_derivatives_ica(ng, nlev, istartcol, iendcol, mask_1d, trans_clear(:,:,:), flux_up_clear(:,nlev+1,:), &
+           &                         1.0_jprb-total_cloud_cover, flux%lw_derivatives)
     end if
 
     ! Loop through columns
@@ -417,13 +414,15 @@ contains
       end if
     end do
     if (config%do_lw_derivatives) then
+      mask_1d = .FALSE.
       do jcol = istartcol,iendcol
         if (total_cloud_cover(jcol) < config%cloud_fraction_threshold) then
-          call calc_lw_derivatives_ica(ng, nlev, jcol, trans_clear(:,:,jcol), flux_up_clear(:,nlev+1,jcol), &
-               &                       flux%lw_derivatives)
- 
+          mask_1d(jcol) = .TRUE.
         end if
       end do
+      call calc_lw_derivatives_ica(ng, nlev, istartcol, iendcol, mask_1d, trans_clear(:,:,:), flux_up_clear(:,nlev+1,:), &
+           &                       flux%lw_derivatives)
+ 
     end if ! Cloud is present in profile
 
     if (lhook) call dr_hook('radiation_mcica_lw_acc:solver_mcica_lw',1,hook_handle)
