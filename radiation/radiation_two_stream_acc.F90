@@ -74,7 +74,7 @@ contains
 
     real(jprb) :: factor
 
-    integer    :: jg, jcol, jlev
+    integer    :: jg, jcol
 
 #ifdef DO_DR_HOOK_TWO_STREAM
     real(jprb) :: hook_handle
@@ -202,7 +202,7 @@ contains
 
     real(jprd) :: coeff, coeff_up_top, coeff_up_bot, coeff_dn_top, coeff_dn_bot
 
-    integer :: jg, jcol, jlev
+    integer :: jg, jcol
 
 #ifdef DO_DR_HOOK_TWO_STREAM
     real(jprb) :: hook_handle
@@ -335,37 +335,37 @@ contains
   ! downward flux at the base of the layer due to emission from within
   ! the layer assuming a linear variation of Planck function within
   ! the layer.
-  subroutine calc_no_scattering_transmittance_lw(ng, nlev, istartcol, iendcol, mask, &
-       &    od, planck, transmittance, source_up, source_dn)
+  subroutine calc_no_scattering_transmittance_lw(ng, istartcol, iendcol, mask, &
+       &    od, planck_bot, planck_top, transmittance, source_up, source_dn)
 
 #ifdef DO_DR_HOOK_TWO_STREAM
     use ecradhook, only : lhook, dr_hook
 #endif
 
-    integer, intent(in) :: ng, nlev, istartcol, iendcol
+    integer, intent(in) :: ng, istartcol, iendcol
 
     ! where to do this computation
-    logical, intent(in) :: mask(nlev, istartcol:iendcol)
+    logical, intent(in) :: mask(istartcol:iendcol)
 
     ! Optical depth and single scattering albedo
-    real(jprb), intent(in), dimension(ng, nlev, istartcol:iendcol) :: od
+    real(jprb), intent(in), dimension(ng, istartcol:iendcol) :: od
 
     ! The Planck terms (functions of temperature) at the top and
     ! bottom of the layer
-    real(jprb), intent(in), dimension(ng, nlev+1, istartcol:iendcol) :: planck
+    real(jprb), intent(in), dimension(ng, istartcol:iendcol) :: planck_bot, planck_top
 
     ! The diffuse transmittance, i.e. the fraction of diffuse
     ! radiation incident on a layer from either top or bottom that is
     ! reflected back or transmitted through
-    real(jprb), intent(out), dimension(ng, nlev, istartcol:iendcol) :: transmittance
+    real(jprb), intent(out), dimension(ng, istartcol:iendcol) :: transmittance
 
     ! The upward emission at the top of the layer and the downward
     ! emission at its base, due to emission from within the layer
-    real(jprb), intent(out), dimension(ng, nlev, istartcol:iendcol) :: source_up, source_dn
+    real(jprb), intent(out), dimension(ng, istartcol:iendcol) :: source_up, source_dn
 
     real(jprd) :: coeff, coeff_up_top, coeff_up_bot, coeff_dn_top, coeff_dn_bot !, planck_mean
 
-    integer :: jg, jcol, jlev
+    integer :: jg, jcol
 
 #ifdef DO_DR_HOOK_TWO_STREAM
     real(jprb) :: hook_handle
@@ -374,35 +374,33 @@ contains
 #endif
 
     ! Loop through columns
-    do jcol = istartcol,iendcol
       ! transmission and emission
-      do jlev = 1,nlev
+    do jcol = istartcol,iendcol
 !NEC$ shortloop
-        do jg = 1, ng
-          if (mask(jlev, jcol)) then
-            ! Compute upward and downward emission assuming the Planck
-            ! function to vary linearly with optical depth within the layer
-            ! (e.g. Wiscombe , JQSRT 1976).
-            if (od(jg,jlev,jcol) > 1.0e-3) then
-              ! Simplified from calc_reflectance_transmittance_lw above
-              coeff = LwDiffusivity*od(jg,jlev,jcol)
-              transmittance(jg,jlev,jcol) = exp_fast(-coeff)
-              coeff = (planck(jg,jlev+1,jcol)-planck(jg,jlev,jcol)) / coeff
-              coeff_up_top  =  coeff + planck(jg,jlev,jcol)
-              coeff_up_bot  =  coeff + planck(jg,jlev+1,jcol)
-              coeff_dn_top  = -coeff + planck(jg,jlev,jcol)
-              coeff_dn_bot  = -coeff + planck(jg,jlev+1,jcol)
-              source_up(jg,jlev,jcol) =  coeff_up_top - transmittance(jg,jlev,jcol) * coeff_up_bot
-              source_dn(jg,jlev,jcol) =  coeff_dn_bot - transmittance(jg,jlev,jcol) * coeff_dn_top
-            else
-              ! Linear limit at low optical depth
-              coeff = LwDiffusivity*od(jg,jlev,jcol)
-              transmittance(jg,jlev,jcol) = 1.0_jprb - coeff
-              source_up(jg,jlev,jcol) = coeff * 0.5_jprb * (planck(jg,jlev,jcol)+planck(jg,jlev+1,jcol))
-              source_dn(jg,jlev,jcol) = source_up(jg,jlev,jcol)
-            end if
+      do jg = 1, ng
+        if (mask(jcol)) then
+          ! Compute upward and downward emission assuming the Planck
+          ! function to vary linearly with optical depth within the layer
+          ! (e.g. Wiscombe , JQSRT 1976).
+          if (od(jg,jcol) > 1.0e-3) then
+            ! Simplified from calc_reflectance_transmittance_lw above
+            coeff = LwDiffusivity*od(jg,jcol)
+            transmittance(jg,jcol) = exp_fast(-coeff)
+            coeff = (planck_top(jg,jcol)-planck_bot(jg,jcol)) / coeff
+            coeff_up_top  =  coeff + planck_bot(jg,jcol)
+            coeff_up_bot  =  coeff + planck_top(jg,jcol)
+            coeff_dn_top  = -coeff + planck_bot(jg,jcol)
+            coeff_dn_bot  = -coeff + planck_top(jg,jcol)
+            source_up(jg,jcol) =  coeff_up_top - transmittance(jg,jcol) * coeff_up_bot
+            source_dn(jg,jcol) =  coeff_dn_bot - transmittance(jg,jcol) * coeff_dn_top
+          else
+            ! Linear limit at low optical depth
+            coeff = LwDiffusivity*od(jg,jcol)
+            transmittance(jg,jcol) = 1.0_jprb - coeff
+            source_up(jg,jcol) = coeff * 0.5_jprb * (planck_bot(jg,jcol)+planck_top(jg,jcol))
+            source_dn(jg,jcol) = source_up(jg,jcol)
           end if
-        end do
+        end if
       end do
     end do
 

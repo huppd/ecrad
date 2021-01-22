@@ -165,9 +165,11 @@ contains
     else
       mask_2d = .TRUE.
       mask_1d = .TRUE.
-      call calc_no_scattering_transmittance_lw(ng, nlev, istartcol, iendcol, mask_2d, od, &
-      &  planck_hl, &
-      &  trans_clear, source_up_clear, source_dn_clear)
+      do jlev = 1,nlev
+        call calc_no_scattering_transmittance_lw(ng, istartcol, iendcol, mask_1d, od(:,jlev,:), &
+        &  planck_hl(:,jlev,:), planck_hl(:,jlev+1,:), &
+        &  trans_clear(:,jlev,:), source_up_clear(:,jlev,:), source_dn_clear(:,jlev,:))
+      end do
       ! Loop through columns
       ! Simpler down-then-up method to compute fluxes
       call calc_fluxes_no_scattering_lw(ng, nlev, istartcol, iendcol, mask_1d, &
@@ -217,23 +219,13 @@ contains
             if (i_cloud_top(jcol) > jlev) then
               i_cloud_top(jcol) = jlev
             end if
-          end if
-        end if
-      end do
-    end do
-    ! Loop through columns
-    do jlev = 1,nlev
-      do jcol = istartcol,iendcol
-        do jg = 1, ng
-          if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
-            ! Compute combined gas+aerosol+cloud optical properties
-            if (cloud%fraction(jcol,jlev) >= config%cloud_fraction_threshold) then
+            do jg = 1, ng
               od_cloud_new(jg,jlev,jcol) = od_scaling(jg,jlev,jcol) &
                  &  * od_cloud(config%i_band_from_reordered_g_lw(jg),jlev,jcol)
               od_total(jg,jlev,jcol) = od(jg,jlev,jcol) + od_cloud_new(jg,jlev,jcol)
-            end if
+            end do
           end if
-        end do
+        end if
       end do
     end do
     ! Loop through columns
@@ -318,9 +310,9 @@ contains
     else
       ! No-scattering case: use simpler functions for
       ! transmission and emission
-      call calc_no_scattering_transmittance_lw(ng, nlev, istartcol, iendcol, mask_2d, od_total, &
-           &  planck_hl, &
-           &  transmittance, source_up, source_dn)
+      call calc_no_scattering_transmittance_lw(ng, istartcol, iendcol, mask_2d(jlev,:), od_total(:,jlev,:), &
+           &  planck_hl(:,jlev,:), planck_hl(:,jlev+1,:), &
+           &  transmittance(:,jlev,:), source_up(:,jlev,:), source_dn(:,jlev,:))
     end if
     ! Loop through columns
     do jlev = 1,nlev
