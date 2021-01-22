@@ -81,10 +81,53 @@ contains
 
   end subroutine calc_lw_derivatives_ica
 
+  subroutine calc_lw_derivatives_ica_lr(ng, nlev, icol, flux_up_surf_sum, flux_up_mul_trans_clear_sum, &
+    &  lw_derivatives)
+
+    use parkind1, only           : jprb
+    use yomhook,  only           : lhook, dr_hook
+
+    implicit none
+
+    ! Inputs
+    integer,    intent(in) :: ng   ! number of spectral intervals
+    integer,    intent(in) :: nlev ! number of levels
+    integer,    intent(in) :: icol ! Index of column for output
+    real(jprb), intent(in) :: flux_up_surf_sum
+    real(jprb), intent(in) :: flux_up_mul_trans_clear_sum(nlev)
+    
+    ! Output
+    real(jprb), intent(out) :: lw_derivatives(:,:) ! dimensioned (ncol,nlev+1)
+
+    ! Rate of change of spectral flux at a given height with respect
+    ! to the surface value
+    real(jprb) :: lw_derivatives_g(ng)
+
+    integer    :: jlev
+
+    real(jprb) :: hook_handle
+
+    if (lhook) call dr_hook('radiation_lw_derivatives:calc_lw_derivatives_ica_lr',0,hook_handle)
+
+    ! Initialize the derivatives at the surface
+!    lw_derivatives_g = flux_up_surf / sum(flux_up_surf)
+    lw_derivatives(icol, nlev+1) = 1.0_jprb
+
+    ! Move up through the atmosphere computing the derivatives at each
+    ! half-level
+    do jlev = nlev,1,-1
+!      lw_derivatives_g = lw_derivatives_g * transmittance(jlev,:)
+      lw_derivatives(icol,jlev) = flux_up_mul_trans_clear_sum(jlev) / flux_up_surf_sum
+    end do
+
+    if (lhook) call dr_hook('radiation_lw_derivatives:calc_lw_derivatives_ica_lr',1,hook_handle)
+
+  end subroutine calc_lw_derivatives_ica_lr
+
   !---------------------------------------------------------------------
   ! Calculation for the Independent Column Approximation
   subroutine modify_lw_derivatives_ica(ng, nlev, icol, transmittance, &
-       &                               flux_up_surf, weight, lw_derivatives)
+       & flux_up_surf, weight, lw_derivatives)
 
     use parkind1, only           : jprb
     use yomhook,  only           : lhook, dr_hook
@@ -129,6 +172,94 @@ contains
 
   end subroutine modify_lw_derivatives_ica
 
+  subroutine modify_lw_derivatives_ica_lr2(ng, nlev, icol, &
+    & flux_up_surf_sum, flux_up_mul_trans_clear_sum, weight, lw_derivatives)
+
+ use parkind1, only           : jprb
+ use yomhook,  only           : lhook, dr_hook
+
+ implicit none
+
+ ! Inputs
+ integer,    intent(in) :: ng   ! number of spectral intervals
+ integer,    intent(in) :: nlev ! number of levels
+ integer,    intent(in) :: icol ! Index of column for output
+ real(jprb), intent(in) :: flux_up_surf_sum
+ real(jprb), intent(in) :: flux_up_mul_trans_clear_sum(nlev)
+ real(jprb), intent(in) :: weight ! Weight new values against existing
+ 
+ ! Output
+ real(jprb), intent(inout) :: lw_derivatives(:,:) ! dimensioned (ncol,nlev+1)
+
+ ! Rate of change of spectral flux at a given height with respect
+ ! to the surface value
+ real(jprb) :: lw_derivatives_g(ng)
+
+ integer    :: jlev
+
+ real(jprb) :: hook_handle
+
+ if (lhook) call dr_hook('radiation_lw_derivatives:modify_lw_derivatives_ica',0,hook_handle)
+
+ ! This value must be 1 so no weighting applied
+ lw_derivatives(icol, nlev+1) = 1.0_jprb
+
+ ! Move up through the atmosphere computing the derivatives at each
+ ! half-level
+ do jlev = nlev,1,-1
+   lw_derivatives(icol,jlev) = (1.0_jprb - weight) * lw_derivatives(icol,jlev) &
+        &                    + weight * flux_up_mul_trans_clear_sum(jlev) / flux_up_surf_sum
+ end do
+
+ if (lhook) call dr_hook('radiation_lw_derivatives:modify_lw_derivatives_ica',1,hook_handle)
+
+end subroutine modify_lw_derivatives_ica_lr2
+
+  subroutine modify_lw_derivatives_ica_lr(ng, nlev, icol, flux_up_mul_trans_clear_sum, &
+    & flux_up_surf_sum, weight, lw_derivatives)
+
+ use parkind1, only           : jprb
+ use yomhook,  only           : lhook, dr_hook
+
+ implicit none
+
+ ! Inputs
+ integer,    intent(in) :: ng   ! number of spectral intervals
+ integer,    intent(in) :: nlev ! number of levels
+ integer,    intent(in) :: icol ! Index of column for output
+ real(jprb), intent(in) :: flux_up_mul_trans_clear_sum(nlev)
+ real(jprb), intent(in) :: flux_up_surf_sum ! Upwelling surface spectral flux (W m-2)
+ real(jprb), intent(in) :: weight ! Weight new values against existing
+ 
+ ! Output
+ real(jprb), intent(inout) :: lw_derivatives(:,:) ! dimensioned (ncol,nlev+1)
+
+ ! Rate of change of spectral flux at a given height with respect
+ ! to the surface value
+!    real(jprb) :: lw_derivatives_g(ng)
+
+ integer    :: jlev
+
+ real(jprb) :: hook_handle
+
+ if (lhook) call dr_hook('radiation_lw_derivatives:modify_lw_derivatives_ica_lr',0,hook_handle)
+
+ ! Initialize the derivatives at the surface
+!    lw_derivatives_g = flux_up_surf / flux_up_surf_sum
+ ! This value must be 1 so no weighting applied
+ lw_derivatives(icol, nlev+1) = 1.0_jprb
+
+ ! Move up through the atmosphere computing the derivatives at each
+ ! half-level
+ do jlev = nlev,1,-1
+!     lw_derivatives_g = lw_derivatives_g * transmittance(jlev,:)
+   lw_derivatives(icol,jlev) = (1.0_jprb - weight) * lw_derivatives(icol,jlev) &
+        &                    + weight * flux_up_mul_trans_clear_sum(jlev) / flux_up_surf_sum
+ end do
+
+ if (lhook) call dr_hook('radiation_lw_derivatives:modify_lw_derivatives_ica_lr',1,hook_handle)
+
+end subroutine modify_lw_derivatives_ica_lr
 
 
   !---------------------------------------------------------------------
