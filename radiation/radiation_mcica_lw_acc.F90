@@ -103,7 +103,7 @@ contains
     real(jprb), dimension(config%n_g_lw, nlev, istartcol:iendcol) :: od_total, ssa_total, g_total
 
     ! Two-stream coefficients
-    real(jprb), dimension(config%n_g_lw, nlev, istartcol:iendcol) :: gamma1, gamma2
+    real(jprb), dimension(config%n_g_lw, istartcol:iendcol) :: gamma1, gamma2
 
     ! Optical depth scaling from the cloud generator, zero indicating
     ! clear skies
@@ -147,14 +147,15 @@ contains
     if (config%do_lw_aerosol_scattering) then
       ssa_total = ssa
       g_total   = g
-      mask_2d = .TRUE.
       mask_1d = .TRUE.
-      call calc_two_stream_gammas_lw(ng, nlev, istartcol, iendcol, mask_2d, ssa_total, g_total, &
-      &  gamma1, gamma2)
-      call calc_reflectance_transmittance_lw(ng, nlev, istartcol, iendcol, mask_2d, &
-           &  od, gamma1, gamma2, &
-           &  planck_hl, &
-           &  ref_clear, trans_clear, source_up_clear, source_dn_clear)
+      do jlev = 1, nlev
+        call calc_two_stream_gammas_lw(ng, istartcol, iendcol, mask_1d, ssa_total(:,jlev,:), g_total(:,jlev,:), &
+        &  gamma1, gamma2)
+        call calc_reflectance_transmittance_lw(ng, istartcol, iendcol, mask_1d, &
+             &  od(:,jlev,:), gamma1, gamma2, &
+             &  planck_hl(:,jlev,:), planck_hl(:,jlev+1,:), &
+             &  ref_clear(:,jlev,:), trans_clear(:,jlev,:), source_up_clear(:,jlev,:), source_dn_clear(:,jlev,:))
+      end do
       ! Then use adding method to compute fluxes
       call adding_ica_lw(ng, nlev, istartcol, iendcol, mask_1d, &
            &  ref_clear, trans_clear, source_up_clear, source_dn_clear, &
@@ -306,12 +307,14 @@ contains
           end if
         end do
       end do
-      call calc_two_stream_gammas_lw(ng, nlev, istartcol, iendcol, mask_2d, ssa_total, g_total, &
-      &  gamma1, gamma2)
-      call calc_reflectance_transmittance_lw(ng, nlev, istartcol, iendcol, mask_2d, &
-           &  od_total, gamma1, gamma2, &
-           &  planck_hl, &
-           &  reflectance, transmittance, source_up, source_dn)
+      do jlev = 1,nlev
+        call calc_two_stream_gammas_lw(ng, istartcol, iendcol, mask_2d(jlev,:), ssa_total(:,jlev,:), g_total(:,jlev,:), &
+        &  gamma1, gamma2)
+        call calc_reflectance_transmittance_lw(ng, istartcol, iendcol, mask_2d(jlev,:), &
+             &  od_total(:,jlev,:), gamma1, gamma2, &
+             &  planck_hl(:,jlev,:), planck_hl(:,jlev+1,:), &
+             &  reflectance(:,jlev,:), transmittance(:,jlev,:), source_up(:,jlev,:), source_dn(:,jlev,:))
+      end do
     else
       ! No-scattering case: use simpler functions for
       ! transmission and emission

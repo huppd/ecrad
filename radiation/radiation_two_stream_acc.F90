@@ -59,18 +59,18 @@ contains
   !---------------------------------------------------------------------
   ! Calculate the two-stream coefficients gamma1 and gamma2 for the
   ! longwave
-  subroutine calc_two_stream_gammas_lw(ng, nlev, istartcol, iendcol, mask, ssa, g, &
+  subroutine calc_two_stream_gammas_lw(ng, istartcol, iendcol, mask, ssa, g, &
        &                               gamma1, gamma2)
 
 #ifdef DO_DR_HOOK_TWO_STREAM
     use ecradhook, only : lhook, dr_hook
 #endif
 
-    integer, intent(in) :: ng, nlev, istartcol, iendcol
+    integer, intent(in) :: ng, istartcol, iendcol
     ! Sngle scattering albedo and asymmetry factor:
-    real(jprb), intent(in),  dimension(ng,nlev,istartcol:iendcol) :: ssa, g
-    logical, intent(in), dimension(nlev,istartcol:iendcol) :: mask
-    real(jprb), intent(out), dimension(ng,nlev,istartcol:iendcol) :: gamma1, gamma2
+    real(jprb), intent(in),  dimension(ng,istartcol:iendcol) :: ssa, g
+    logical, intent(in), dimension(istartcol:iendcol) :: mask
+    real(jprb), intent(out), dimension(ng,istartcol:iendcol) :: gamma1, gamma2
 
     real(jprb) :: factor
 
@@ -85,21 +85,19 @@ contains
     do jcol = istartcol,iendcol
       ! Scattering case: first compute clear-sky reflectance,
       ! transmittance etc at each model level
-      do jlev = 1,nlev
-        !NEC$ shortloop
-        do jg = 1, ng
-          ! Fu et al. (1997), Eq 2.9 and 2.10:
-          !      gamma1(jg) = LwDiffusivity * (1.0_jprb - 0.5_jprb*ssa(jg) &
-          !           &                    * (1.0_jprb + g(jg)))
-          !      gamma2(jg) = LwDiffusivity * 0.5_jprb * ssa(jg) &
-          !           &                    * (1.0_jprb - g(jg))
-          ! Reduce number of multiplications
-          if(mask(jlev, jcol)) then
-            factor = (LwDiffusivity * 0.5_jprb) * ssa(jg,jlev,jcol)
-            gamma1(jg,jlev,jcol) = LwDiffusivity - factor*(1.0_jprb + g(jg,jlev,jcol))
-            gamma2(jg,jlev,jcol) = factor * (1.0_jprb - g(jg,jlev,jcol))
-          end if
-        end do
+      !NEC$ shortloop
+      do jg = 1, ng
+        ! Fu et al. (1997), Eq 2.9 and 2.10:
+        !      gamma1(jg) = LwDiffusivity * (1.0_jprb - 0.5_jprb*ssa(jg) &
+        !           &                    * (1.0_jprb + g(jg)))
+        !      gamma2(jg) = LwDiffusivity * 0.5_jprb * ssa(jg) &
+        !           &                    * (1.0_jprb - g(jg))
+        ! Reduce number of multiplications
+        if(mask(jcol)) then
+          factor = (LwDiffusivity * 0.5_jprb) * ssa(jg,jcol)
+          gamma1(jg,jcol) = LwDiffusivity - factor*(1.0_jprb + g(jg,jcol))
+          gamma2(jg,jcol) = factor * (1.0_jprb - g(jg,jcol))
+        end if
       end do
     end do
 
@@ -164,39 +162,39 @@ contains
   ! upward flux at the top and the downward flux at the base of the
   ! layer due to emission from within the layer assuming a linear
   ! variation of Planck function within the layer.
-  subroutine calc_reflectance_transmittance_lw(ng, nlev, istartcol, iendcol, mask, &
-       &    od, gamma1, gamma2, planck, &
+  subroutine calc_reflectance_transmittance_lw(ng, istartcol, iendcol, mask, &
+       &    od, gamma1, gamma2, planck_bot, planck_top, &
        &    reflectance, transmittance, source_up, source_dn)
 
 #ifdef DO_DR_HOOK_TWO_STREAM
     use ecradhook, only : lhook, dr_hook
 #endif
 
-    integer, intent(in) :: ng, nlev, istartcol, iendcol
+    integer, intent(in) :: ng, istartcol, iendcol
 
     ! where to compute this
-    logical, intent(in) :: mask(nlev, istartcol:iendcol)
+    logical, intent(in) :: mask(istartcol:iendcol)
 
     ! Optical depth and single scattering albedo
-    real(jprb), intent(in), dimension(ng, nlev, istartcol:iendcol) :: od
+    real(jprb), intent(in), dimension(ng, istartcol:iendcol) :: od
 
     ! The two transfer coefficients from the two-stream
     ! differentiatial equations (computed by
     ! calc_two_stream_gammas_lw)
-    real(jprb), intent(in), dimension(ng, nlev, istartcol:iendcol) :: gamma1, gamma2
+    real(jprb), intent(in), dimension(ng, istartcol:iendcol) :: gamma1, gamma2
 
     ! The Planck terms (functions of temperature) at the top and
     ! bottom of the layer
-    real(jprb), intent(in), dimension(ng, nlev+1, istartcol:iendcol) :: planck
+    real(jprb), intent(in), dimension(ng, istartcol:iendcol) :: planck_bot, planck_top
 
     ! The diffuse reflectance and transmittance, i.e. the fraction of
     ! diffuse radiation incident on a layer from either top or bottom
     ! that is reflected back or transmitted through
-    real(jprb), intent(out), dimension(ng, nlev, istartcol:iendcol) :: reflectance, transmittance
+    real(jprb), intent(out), dimension(ng, istartcol:iendcol) :: reflectance, transmittance
 
     ! The upward emission at the top of the layer and the downward
     ! emission at its base, due to emission from within the layer
-    real(jprb), intent(out), dimension(ng, nlev, istartcol:iendcol) :: source_up, source_dn
+    real(jprb), intent(out), dimension(ng, istartcol:iendcol) :: source_up, source_dn
 
     real(jprd) :: k_exponent, reftrans_factor
     real(jprd) :: exponential  ! = exp(-k_exponent*od)
@@ -213,44 +211,42 @@ contains
 #endif
 
 !NEC$ shortloop
-    do jlev = 1,nlev
-      do jcol = istartcol,iendcol
-        do jg = 1, ng
-          if (mask(jlev, jcol)) then
-            if (od(jg,jlev,jcol) > 1.0e-3_jprd) then
-              k_exponent = sqrt(max((gamma1(jg,jlev,jcol) - gamma2(jg,jlev,jcol)) * (gamma1(jg,jlev,jcol) + gamma2(jg,jlev,jcol)), &
-                   1.E-12_jprd)) ! Eq 18 of Meador & Weaver (1980)
-              exponential = exp_fast(-k_exponent*od(jg,jlev,jcol))
-              exponential2 = exponential*exponential
-              reftrans_factor = 1.0 / (k_exponent + gamma1(jg,jlev,jcol) + (k_exponent - gamma1(jg,jlev,jcol))*exponential2)
-              ! Meador & Weaver (1980) Eq. 25
-              reflectance(jg,jlev,jcol) = gamma2(jg,jlev,jcol) * (1.0_jprd - exponential2) * reftrans_factor
-              ! Meador & Weaver (1980) Eq. 26
-              transmittance(jg,jlev,jcol) = 2.0_jprd * k_exponent * exponential * reftrans_factor
-            
-              ! Compute upward and downward emission assuming the Planck
-              ! function to vary linearly with optical depth within the layer
-              ! (e.g. Wiscombe , JQSRT 1976).
-            
-              ! Stackhouse and Stephens (JAS 1991) Eqs 5 & 12
-              coeff = (planck(jg,jlev+1,jcol)-planck(jg,jlev,jcol)) / (od(jg,jlev,jcol)*(gamma1(jg,jlev,jcol)+gamma2(jg,jlev,jcol)))
-              coeff_up_top  =  coeff + planck(jg,jlev,jcol)
-              coeff_up_bot  =  coeff + planck(jg,jlev+1,jcol)
-              coeff_dn_top  = -coeff + planck(jg,jlev,jcol)
-              coeff_dn_bot  = -coeff + planck(jg,jlev+1,jcol)
-              source_up(jg,jlev,jcol) =  coeff_up_top - reflectance(jg,jlev,jcol) * coeff_dn_top - transmittance(jg,jlev,jcol) * coeff_up_bot
-              source_dn(jg,jlev,jcol) =  coeff_dn_bot - reflectance(jg,jlev,jcol) * coeff_up_bot - transmittance(jg,jlev,jcol) * coeff_dn_top
-            else
-              k_exponent = sqrt(max((gamma1(jg,jlev,jcol) - gamma2(jg,jlev,jcol)) * (gamma1(jg,jlev,jcol) + gamma2(jg,jlev,jcol)), &
-                   1.E-12_jprd)) ! Eq 18 of Meador & Weaver (1980)
-              reflectance(jg,jlev,jcol) = gamma2(jg,jlev,jcol) * od(jg,jlev,jcol)
-              transmittance(jg,jlev,jcol) = (1.0_jprb - k_exponent*od(jg,jlev,jcol)) / (1.0_jprb + od(jg,jlev,jcol)*(gamma1(jg,jlev,jcol)-k_exponent))
-              source_up(jg,jlev,jcol) = (1.0_jprb - reflectance(jg,jlev,jcol) - transmittance(jg,jlev,jcol)) &
-                   &       * 0.5 * (planck(jg,jlev,jcol) + planck(jg,jlev+1,jcol))
-              source_dn(jg,jlev,jcol) = source_up(jg,jlev,jcol)
-            end if
+    do jcol = istartcol,iendcol
+      do jg = 1, ng
+        if (mask(jcol)) then
+          if (od(jg,jcol) > 1.0e-3_jprd) then
+            k_exponent = sqrt(max((gamma1(jg,jcol) - gamma2(jg,jcol)) * (gamma1(jg,jcol) + gamma2(jg,jcol)), &
+                 1.E-12_jprd)) ! Eq 18 of Meador & Weaver (1980)
+            exponential = exp_fast(-k_exponent*od(jg,jcol))
+            exponential2 = exponential*exponential
+            reftrans_factor = 1.0 / (k_exponent + gamma1(jg,jcol) + (k_exponent - gamma1(jg,jcol))*exponential2)
+            ! Meador & Weaver (1980) Eq. 25
+            reflectance(jg,jcol) = gamma2(jg,jcol) * (1.0_jprd - exponential2) * reftrans_factor
+            ! Meador & Weaver (1980) Eq. 26
+            transmittance(jg,jcol) = 2.0_jprd * k_exponent * exponential * reftrans_factor
+          
+            ! Compute upward and downward emission assuming the Planck
+            ! function to vary linearly with optical depth within the layer
+            ! (e.g. Wiscombe , JQSRT 1976).
+          
+            ! Stackhouse and Stephens (JAS 1991) Eqs 5 & 12
+            coeff = (planck_top(jg,jcol)-planck_bot(jg,jcol)) / (od(jg,jcol)*(gamma1(jg,jcol)+gamma2(jg,jcol)))
+            coeff_up_top  =  coeff + planck_bot(jg,jcol)
+            coeff_up_bot  =  coeff + planck_top(jg,jcol)
+            coeff_dn_top  = -coeff + planck_bot(jg,jcol)
+            coeff_dn_bot  = -coeff + planck_top(jg,jcol)
+            source_up(jg,jcol) =  coeff_up_top - reflectance(jg,jcol) * coeff_dn_top - transmittance(jg,jcol) * coeff_up_bot
+            source_dn(jg,jcol) =  coeff_dn_bot - reflectance(jg,jcol) * coeff_up_bot - transmittance(jg,jcol) * coeff_dn_top
+          else
+            k_exponent = sqrt(max((gamma1(jg,jcol) - gamma2(jg,jcol)) * (gamma1(jg,jcol) + gamma2(jg,jcol)), &
+                 1.E-12_jprd)) ! Eq 18 of Meador & Weaver (1980)
+            reflectance(jg,jcol) = gamma2(jg,jcol) * od(jg,jcol)
+            transmittance(jg,jcol) = (1.0_jprb - k_exponent*od(jg,jcol)) / (1.0_jprb + od(jg,jcol)*(gamma1(jg,jcol)-k_exponent))
+            source_up(jg,jcol) = (1.0_jprb - reflectance(jg,jcol) - transmittance(jg,jcol)) &
+                 &       * 0.5 * (planck_bot(jg,jcol) + planck_top(jg,jcol))
+            source_dn(jg,jcol) = source_up(jg,jcol)
           end if
-        end do
+        end if
       end do
     end do
     
