@@ -125,7 +125,8 @@ contains
 
     ! Fluxes per g point
     ! cos: ng can not be demoted because of reductions
-    real(jprb), dimension(istartcol:iendcol,nlev+1,config%n_g_lw) :: flux_up, flux_dn, flux_up_clear, flux_dn_clear
+    real(jprb), dimension(istartcol:iendcol,nlev+1,config%n_g_lw) :: flux_dn, flux_up_clear, flux_dn_clear
+    real(jprb), dimension(istartcol:iendcol,nlev+1) :: flux_up
     real(jprb), dimension(istartcol:iendcol,nlev+1) :: flux_up_clear_sum, flux_up_sum
     real(jprb), dimension(istartcol:iendcol,nlev) :: flux_up_mul_trans_clear_sum, flux_up_mul_trans_sum
     real(jprb) :: flux_up_mul_trans_clear_prod, flux_up_mul_trans_prod
@@ -422,7 +423,7 @@ contains
         ! allowing for scattering in all layers
         call adding_ica_lw_cond_lr(istartcol, iendcol, nlev, total_cloud_cover, config%cloud_fraction_threshold, &
 &          reflectance, transmittance(:,:,jg), source_up, &
-&          source_dn, emission(:,jg), albedo(:,jg), flux_up(:,:,jg), flux_dn(:,:,jg))
+&          source_dn, emission(:,jg), albedo(:,jg), flux_up(:,:), flux_dn(:,:,jg))
       else if (config%do_lw_cloud_scattering) then
         ! Use adding method to compute fluxes but optimize for the
         ! presence of clear-sky layers
@@ -434,7 +435,7 @@ contains
           call fast_adding_ica_lw_lr(istartcol,iendcol, nlev, total_cloud_cover, config%cloud_fraction_threshold, &
 &               reflectance, transmittance(:,:,jg), source_up, &
               & source_dn, emission(:,jg), albedo(:,jg), is_clear_sky_layer(:,:), i_cloud_top, &
-              & flux_dn_clear(:,:,jg), flux_up(:,:,jg), flux_dn(:,:,jg))
+              & flux_dn_clear(:,:,jg), flux_up(:,:), flux_dn(:,:,jg))
       else
         ! ! Simpler down-then-up method to compute fluxes
         ! call calc_fluxes_no_scattering_lw(ng, nlev, &
@@ -443,7 +444,7 @@ contains
                         ! Simpler down-then-up method to compute fluxes
         call calc_fluxes_no_scattering_lw_cond_lr(istartcol,iendcol, nlev, total_cloud_cover, config%cloud_fraction_threshold, &
         &  transmittance(:,:,jg), source_up, source_dn, emission(:,jg), albedo(:,jg), &
-        &  flux_up(:,:,jg), flux_dn(:,:,jg))
+        &  flux_up(:,:), flux_dn(:,:,jg))
 
       end if
 
@@ -460,9 +461,9 @@ contains
 
       do jcol = istartcol,iendcol
         if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
-          flux_up_sum(jcol,:) = flux_up_sum(jcol,:) + flux_up(jcol,:,jg)
+          flux_up_sum(jcol,:) = flux_up_sum(jcol,:) + flux_up(jcol,:)
 
-          flux_up_mul_trans_prod  = flux_up(jcol,nlev+1,jg)
+          flux_up_mul_trans_prod  = flux_up(jcol,nlev+1)
           do jlev = nlev,1,-1
             flux_up_mul_trans_prod = flux_up_mul_trans_prod * transmittance(jcol,jlev,jg)
   
