@@ -126,9 +126,9 @@ contains
     ! Fluxes per g point
     ! cos: ng can not be demoted because of reductions
     real(jprb), dimension(istartcol:iendcol,nlev+1,config%n_g_lw) :: flux_up, flux_dn, flux_up_clear, flux_dn_clear
-    real(jprb), dimension(istartcol:iendcol,nlev+1) :: flux_up_clear_sum
-    real(jprb), dimension(istartcol:iendcol,nlev) :: flux_up_mul_trans_clear_sum
-    real(jprb) :: flux_up_mul_trans_clear_prod
+    real(jprb), dimension(istartcol:iendcol,nlev+1) :: flux_up_clear_sum, flux_up_sum
+    real(jprb), dimension(istartcol:iendcol,nlev) :: flux_up_mul_trans_clear_sum, flux_up_mul_trans_sum
+    real(jprb) :: flux_up_mul_trans_clear_prod, flux_up_mul_trans_prod
 
     ! Combined gas+aerosol+cloud optical depth, single scattering
     ! albedo and asymmetry factor
@@ -282,7 +282,10 @@ contains
     enddo
 
     flux_up_clear_sum(:,:) = 0.0
+    flux_up_sum(:,:) = 0.0
+
     flux_up_mul_trans_clear_sum(:,:) = 0.0
+    flux_up_mul_trans_sum(:,:) = 0.0
 
     ! Loop through columns
     do jg = 1, ng
@@ -326,16 +329,6 @@ contains
         ! used in cloudy-sky case
         ref_clear = 0.0_jprb
       end if
-
-      flux_up_clear_sum(:,:) = flux_up_clear_sum(:,:) + flux_up_clear(:,:,jg)
-
-      do jcol = istartcol,iendcol
-        flux_up_mul_trans_clear_prod  = flux_up_clear(jcol,nlev+1,jg)
-        do jlev = nlev,1,-1
-          flux_up_mul_trans_clear_prod = flux_up_mul_trans_clear_prod * trans_clear(jcol,jlev)
-          flux_up_mul_trans_clear_sum(jcol,jlev) = flux_up_mul_trans_clear_sum(jcol,jlev) + flux_up_mul_trans_clear_prod
-        enddo
-      enddo
 
       do jlev = 1,nlev
         do jcol = istartcol,iendcol
@@ -453,6 +446,31 @@ contains
         &  flux_up(:,:,jg), flux_dn(:,:,jg))
 
       end if
+
+      flux_up_clear_sum(:,:) = flux_up_clear_sum(:,:) + flux_up_clear(:,:,jg)
+
+      do jcol = istartcol,iendcol
+        flux_up_mul_trans_clear_prod  = flux_up_clear(jcol,nlev+1,jg)
+
+        do jlev = nlev,1,-1
+          flux_up_mul_trans_clear_prod = flux_up_mul_trans_clear_prod * trans_clear(jcol,jlev)
+          flux_up_mul_trans_clear_sum(jcol,jlev) = flux_up_mul_trans_clear_sum(jcol,jlev) + flux_up_mul_trans_clear_prod
+        enddo
+      enddo
+
+      do jcol = istartcol,iendcol
+        if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
+          flux_up_sum(jcol,:) = flux_up_sum(jcol,:) + flux_up(jcol,:,jg)
+
+          flux_up_mul_trans_prod  = flux_up(jcol,nlev+1,jg)
+          do jlev = nlev,1,-1
+            flux_up_mul_trans_prod = flux_up_mul_trans_prod * transmittance(jcol,jlev,jg)
+  
+            flux_up_mul_trans_sum(jcol,jlev) = flux_up_mul_trans_sum(jcol,jlev) + flux_up_mul_trans_prod
+          enddo
+        endif
+      enddo
+
     enddo
 
     ! cos: here there are reductions on ng. Therefore we need to break the ng loop,
@@ -463,14 +481,13 @@ contains
 
       ! Sum over g-points to compute broadband fluxes
       flux%lw_up_clear(jcol,:) = flux_up_clear_sum(jcol,:) !
-!      flux%lw_up_clear(jcol,:) = sum(flux_up_clear(jcol,:,:),2)
       flux%lw_dn_clear(jcol,:) = sum(flux_dn_clear(jcol,:,:),2)
       flux%lw_dn_surf_clear_g(:,jcol) = flux_dn_clear(jcol,nlev+1,:)
 
       if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
         
         ! Store overcast broadband fluxes
-        flux%lw_up(jcol,:) = sum(flux_up(jcol,:,:),2)
+        flux%lw_up(jcol,:) = flux_up_sum(jcol,:)
         flux%lw_dn(jcol,:) = sum(flux_dn(jcol,:,:),2)
 
         ! Cloudy flux profiles currently assume completely overcast
@@ -486,8 +503,8 @@ contains
         ! Compute the longwave derivatives needed by Hogan and Bozzo
         ! (2015) approximate radiation update scheme
         if (config%do_lw_derivatives) then
-          call calc_lw_derivatives_ica(ng, nlev, jcol, transmittance(jcol,:,:), flux_up(jcol,nlev+1,:), &
-               &                       flux%lw_derivatives)
+          call calc_lw_derivatives_ica_lr(ng, nlev, jcol, flux_up_sum(jcol,nlev+1), &
+          &    flux_up_mul_trans_sum(jcol,:), flux%lw_derivatives)
 
           if (total_cloud_cover(jcol) < 1.0_jprb - config%cloud_fraction_threshold) then
             ! Modify the existing derivative with the contribution from the clear sky
