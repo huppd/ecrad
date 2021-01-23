@@ -232,7 +232,7 @@ contains
   subroutine cloud_generator_lr(ng, istartcol, iendcol, nlev, i_overlap_scheme, &
     &  iseed, frac_threshold, &
     &  frac, overlap_param, decorrelation_scaling, &
-    &  od_scaling, total_cloud_cover, rand_top, pair_cloud_cover, overhang, &
+    &  total_cloud_cover, rand_top, pair_cloud_cover, overhang, &
     & cum_cloud_cover, overlap_param_inhom, random_stream, ibegin, iend,&
     &  is_beta_overlap)
 
@@ -281,9 +281,6 @@ contains
  logical, intent(in), optional :: is_beta_overlap
 
  ! Outputs
-
- ! Cloud optical depth scaling factor, with 0 indicating clear sky
- real(jprb), intent(out) :: od_scaling(istartcol:iendcol,nlev,ng)
 
  ! Total cloud cover using cloud fraction and overlap parameter
  real(jprb), intent(out) :: total_cloud_cover(istartcol:iendcol)
@@ -370,8 +367,6 @@ contains
               &  = overlap_param(jcol,jlev)**(1.0_jprb/decorrelation_scaling)
         end if
       end do
-      ! Reset optical depth scaling to clear skies
-      od_scaling(jcol,:,:) = 0.0_jprb
     endif
 
   enddo
