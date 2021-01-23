@@ -125,8 +125,8 @@ contains
 
     ! Fluxes per g point
     ! cos: ng can not be demoted because of reductions
-    real(jprb), dimension(istartcol:iendcol,nlev+1,config%n_g_lw) :: flux_dn, flux_up_clear, flux_dn_clear
-    real(jprb), dimension(istartcol:iendcol,nlev+1) :: flux_up
+    real(jprb), dimension(istartcol:iendcol,nlev+1,config%n_g_lw) :: flux_dn, flux_dn_clear
+    real(jprb), dimension(istartcol:iendcol,nlev+1) :: flux_up, flux_up_clear
     real(jprb), dimension(istartcol:iendcol,nlev+1) :: flux_up_clear_sum, flux_up_sum
     real(jprb), dimension(istartcol:iendcol,nlev) :: flux_up_mul_trans_clear_sum, flux_up_mul_trans_sum
     real(jprb) :: flux_up_mul_trans_clear_prod, flux_up_mul_trans_prod
@@ -310,7 +310,7 @@ contains
         call adding_ica_lw_lr(istartcol, iendcol, nlev, &
              &  ref_clear, trans_clear(:,:), source_up_clear, source_dn_clear, &
              &  emission(:,jg), albedo(:,jg), &
-             &  flux_up_clear(:,:,jg), flux_dn_clear(:,:,jg))
+             &  flux_up_clear(:,:), flux_dn_clear(:,:,jg))
         
       else
         ! ! Non-scattering case: use simpler functions for
@@ -324,7 +324,7 @@ contains
         call calc_fluxes_no_scattering_lw_lr(istartcol, iendcol, nlev, &
              &  trans_clear(:,:), source_up_clear, source_dn_clear, &
              &  emission(:,jg), albedo(:,jg), &
-             &  flux_up_clear(:,:,jg), flux_dn_clear(:,:,jg))
+             &  flux_up_clear(:,:), flux_dn_clear(:,:,jg))
         
         ! Ensure that clear-sky reflectance is zero since it may be
         ! used in cloudy-sky case
@@ -448,10 +448,10 @@ contains
 
       end if
 
-      flux_up_clear_sum(:,:) = flux_up_clear_sum(:,:) + flux_up_clear(:,:,jg)
+      flux_up_clear_sum(:,:) = flux_up_clear_sum(:,:) + flux_up_clear(:,:)
 
       do jcol = istartcol,iendcol
-        flux_up_mul_trans_clear_prod  = flux_up_clear(jcol,nlev+1,jg)
+        flux_up_mul_trans_clear_prod  = flux_up_clear(jcol,nlev+1)
 
         do jlev = nlev,1,-1
           flux_up_mul_trans_clear_prod = flux_up_mul_trans_clear_prod * trans_clear(jcol,jlev)
