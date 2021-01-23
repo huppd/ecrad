@@ -54,14 +54,14 @@ contains
     integer :: idx
     double precision, external :: omp_get_wtime
 
-    idx = INT(proc_key)
-    if (iswitch == 0) then
+   if (iswitch == 0) then
       call char_to_hash(proc_name, idx)
       proc_key = real(idx)
       names(idx) = proc_name
       ncalls(idx) = ncalls(idx) + 1
       tstart(idx) = omp_get_wtime()
     else if (iswitch == 1) then
+      idx = INT(proc_key)
       tstop(idx) = omp_get_wtime()
       total_time(idx) = total_time(idx) + (tstop(idx) - tstart(idx))
     endif

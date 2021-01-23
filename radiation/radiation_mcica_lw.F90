@@ -47,6 +47,7 @@ contains
     use radiation_config, only         : config_type
     use radiation_single_level, only   : single_level_type
     use radiation_cloud, only          : cloud_type
+    use radiation_cloud_cover, only : IOverlapExponential
     use radiation_flux, only           : flux_type
     use radiation_two_stream, only     : calc_two_stream_gammas_lw, &
          &                               calc_two_stream_gammas_lw_lr, &
@@ -71,7 +72,9 @@ contains
          &                               calc_fluxes_no_scattering_lw_lr, calc_fluxes_no_scattering_lw_cond_lr
     use radiation_lw_derivatives, only : calc_lw_derivatives_ica, calc_lw_derivatives_ica_lr, &
     &                                    modify_lw_derivatives_ica, modify_lw_derivatives_ica_lr2
-    use radiation_cloud_generator, only: cloud_generator_lr
+    use radiation_cloud_generator, only: cloud_generator_lr, generate_column_exp_ran_lr, generate_column_exp_exp_lr
+
+    use random_numbers_mix, only : randomnumberstream
 
     implicit none
 
@@ -113,7 +116,7 @@ contains
     ! and all skies
     real(jprb), dimension(istartcol:iendcol, nlev) :: ref_clear, reflectance
     ! cos: ng can not be demoted because of reductions
-    real(jprb), dimension(istartcol:iendcol,nlev,config%n_g_lw) :: transmittance
+    real(jprb), dimension(istartcol:iendcol,nlev) :: transmittance
 
     real(jprb), dimension(istartcol:iendcol,nlev) :: trans_clear
 
@@ -191,6 +194,38 @@ contains
     ! surface at each longwave g-point
     real(jprb), dimension(istartcol:iendcol, config%n_g_lw) :: emission, albedo
 
+    ! Scaled random number for finding cloud
+    real(jprb) :: trigger
+    integer :: itrigger
+
+     ! Uniform deviates between 0 and 1
+    ! cos: original (ng). Future demote to jcol only
+    real(jprb) :: rand_top(istartcol:iendcol,config%n_g_lw)
+
+    ! First and last cloudy layers
+    ! cos: origina (scalar). Need to remain like that
+    integer :: ibegin(istartcol:iendcol), iend(istartcol:iendcol)
+
+    ! Cloud cover of a pair of layers, and amount by which cloud at
+    ! next level increases total cloud cover as seen from above
+    ! cos: original (nlev+1). Future can not be demoted since we move jcol innermost
+    ! we need to retain the independent jcol calculations
+    real(jprb), dimension(istartcol:iendcol, nlev-1) :: pair_cloud_cover, overhang
+
+    ! Cumulative cloud cover from TOA to the base of each layer
+    ! cos: original (lev). Future can not be demoted since we move jcol innermost
+    ! we need to retain the independent jcol calculations
+    real(jprb) :: cum_cloud_cover(istartcol:iendcol,nlev)
+
+     ! Overlap parameter of inhomogeneities
+    !cos: original (nlev). Future can not be demoted
+    real(jprb) :: overlap_param_inhom(istartcol:iendcol,nlev-1)
+
+    ! Seed for random number generator and stream for producing random
+    ! numbers
+    !cos: oritinal (scalar)
+    type(randomnumberstream) :: random_stream(istartcol:iendcol)
+
     ng = config%n_g_lw
 
     do jcol = istartcol,iendcol
@@ -255,10 +290,13 @@ contains
            &  single_level%iseed, &
            &  config%cloud_fraction_threshold, &
            &  cloud%fraction, cloud%overlap_param, &
-           &  config%cloud_inhom_decorr_scaling, cloud%fractional_std, &
-           &  config%pdf_sampler, od_scaling, total_cloud_cover, &
+           &  config%cloud_inhom_decorr_scaling, &
+           &  od_scaling, total_cloud_cover, rand_top, &
+           &  pair_cloud_cover, overhang, cum_cloud_cover, overlap_param_inhom, &
+           &  random_stream, ibegin, iend, &
            &  is_beta_overlap=config%use_beta_overlap)
       
+
     do jcol = istartcol, iendcol
       ! Store total cloud cover
       flux%cloud_cover_lw(jcol) = total_cloud_cover(jcol)      
@@ -281,15 +319,43 @@ contains
         enddo
       endif
     enddo
-
+      
     flux_up_clear_sum(:,:) = 0.0
     flux_up_sum(:,:) = 0.0
 
     flux_up_mul_trans_clear_sum(:,:) = 0.0
     flux_up_mul_trans_sum(:,:) = 0.0
 
-    ! Loop through columns
-    do jg = 1, ng
+    do jg = 1,ng
+      do jcol=istartcol,iendcol
+        if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
+        ! Loop over ng columns
+          ! cos: the random num generation was before out of the innermost loop. 
+          ! With the reordering had to be brought inside. We would need to refactor 
+          ! the random number generation subroutines to recover performance
+
+          ! Find the cloud top height corresponding to the current
+          ! random number, and store in itrigger
+          trigger = rand_top(jcol,jg) * total_cloud_cover(jcol)
+          jlev = ibegin(jcol)
+          do while (trigger > cum_cloud_cover(jcol,jlev) .and. jlev < iend(jcol))
+            jlev = jlev + 1
+          end do
+          itrigger = jlev
+
+          if (config%i_overlap_scheme /= IOverlapExponential) then
+            call generate_column_exp_ran_lr(ng, nlev, jg, random_stream(jcol), config%pdf_sampler, &
+                &  cloud%fraction(jcol,:), pair_cloud_cover(jcol,:), &
+                &  cum_cloud_cover(jcol,:), overhang(jcol,:), cloud%fractional_std(jcol,:), overlap_param_inhom(jcol,:), &
+                &  itrigger, iend(jcol), od_scaling(jcol,:,:))
+          else
+            call generate_column_exp_exp_lr(ng, nlev, jg, random_stream(jcol), config%pdf_sampler, &
+                &  cloud%fraction(jcol,:), pair_cloud_cover(jcol,:), &
+                &  cum_cloud_cover(jcol,:), overhang(jcol,:), cloud%fractional_std(jcol,:), overlap_param_inhom(jcol,:), &
+                &  itrigger, iend(jcol), od_scaling(jcol,:,:))
+          end if      
+        endif
+      end do
 
       ! Clear-sky calculation
       if (config%do_lw_aerosol_scattering) then
@@ -393,7 +459,7 @@ contains
                   &  total_cloud_cover, cloud%fraction(:,jlev), config%cloud_fraction_threshold, &
                   & od_total, gamma1, gamma2, &
                   &  planck_hl(:,jlev,jg), planck_hl(:,jlev+1,jg), &
-                  &  reflectance(:,jlev), transmittance(:,jlev,jg), &
+                  &  reflectance(:,jlev), transmittance(:,jlev), &
                   & source_up(:,jlev), source_dn(:,jlev))
 
         else
@@ -402,7 +468,7 @@ contains
              call calc_no_scattering_transmittance_lw_cond_lr(istartcol, iendcol, &
                   & total_cloud_cover, cloud%fraction(:,jlev), config%cloud_fraction_threshold, &
                   & od_total, planck_hl(:,jlev,jg), planck_hl(:,jlev+1,jg), &
-                  &  transmittance(:,jlev,jg), source_up(:,jlev), source_dn(:,jlev))
+                  &  transmittance(:,jlev), source_up(:,jlev), source_dn(:,jlev))
         end if
 
         do jcol = istartcol,iendcol
@@ -412,7 +478,7 @@ contains
 
             ! Clear-sky layer: copy over clear-sky values
             reflectance(jcol,jlev) = ref_clear(jcol,jlev)
-            transmittance(jcol,jlev,jg) = trans_clear(jcol,jlev)
+            transmittance(jcol,jlev) = trans_clear(jcol,jlev)
             source_up(jcol,jlev) = source_up_clear(jcol,jlev)
             source_dn(jcol,jlev) = source_dn_clear(jcol,jlev)
           endif
@@ -422,7 +488,7 @@ contains
         ! Use adding method to compute fluxes for an overcast sky,
         ! allowing for scattering in all layers
         call adding_ica_lw_cond_lr(istartcol, iendcol, nlev, total_cloud_cover, config%cloud_fraction_threshold, &
-&          reflectance, transmittance(:,:,jg), source_up, &
+&          reflectance, transmittance(:,:), source_up, &
 &          source_dn, emission(:,jg), albedo(:,jg), flux_up(:,:), flux_dn(:,:,jg))
       else if (config%do_lw_cloud_scattering) then
         ! Use adding method to compute fluxes but optimize for the
@@ -433,7 +499,7 @@ contains
 !                 & flux_dn_clear(:,:,jcol), flux_up(:,:,jcol), flux_dn(:,:,jcol))
 
           call fast_adding_ica_lw_lr(istartcol,iendcol, nlev, total_cloud_cover, config%cloud_fraction_threshold, &
-&               reflectance, transmittance(:,:,jg), source_up, &
+&               reflectance, transmittance(:,:), source_up, &
               & source_dn, emission(:,jg), albedo(:,jg), is_clear_sky_layer(:,:), i_cloud_top, &
               & flux_dn_clear(:,:,jg), flux_up(:,:), flux_dn(:,:,jg))
       else
@@ -443,7 +509,7 @@ contains
         !      &  flux_up(:,:,jcol), flux_dn(:,:,jcol))
                         ! Simpler down-then-up method to compute fluxes
         call calc_fluxes_no_scattering_lw_cond_lr(istartcol,iendcol, nlev, total_cloud_cover, config%cloud_fraction_threshold, &
-        &  transmittance(:,:,jg), source_up, source_dn, emission(:,jg), albedo(:,jg), &
+        &  transmittance(:,:), source_up, source_dn, emission(:,jg), albedo(:,jg), &
         &  flux_up(:,:), flux_dn(:,:,jg))
 
       end if
@@ -465,7 +531,7 @@ contains
 
           flux_up_mul_trans_prod  = flux_up(jcol,nlev+1)
           do jlev = nlev,1,-1
-            flux_up_mul_trans_prod = flux_up_mul_trans_prod * transmittance(jcol,jlev,jg)
+            flux_up_mul_trans_prod = flux_up_mul_trans_prod * transmittance(jcol,jlev)
   
             flux_up_mul_trans_sum(jcol,jlev) = flux_up_mul_trans_sum(jcol,jlev) + flux_up_mul_trans_prod
           enddo

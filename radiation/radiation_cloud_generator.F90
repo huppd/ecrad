@@ -232,8 +232,8 @@ contains
   subroutine cloud_generator_lr(ng, istartcol, iendcol, nlev, i_overlap_scheme, &
     &  iseed, frac_threshold, &
     &  frac, overlap_param, decorrelation_scaling, &
-    &  fractional_std, pdf_sampler, &
-    &  od_scaling, total_cloud_cover, &
+    &  od_scaling, total_cloud_cover, rand_top, pair_cloud_cover, overhang, &
+    & cum_cloud_cover, overlap_param_inhom, random_stream, ibegin, iend,&
     &  is_beta_overlap)
 
  use parkind1, only           : jprb
@@ -273,13 +273,6 @@ contains
  ! Overlap parameter for internal inhomogeneities
  real(jprb), intent(in)  :: decorrelation_scaling
 
- ! Fractional standard deviation at each layer
-  ! cos: dimensions should be (istartcol:iendcol,nlev), but for some reason it does not validate
- real(jprb), intent(in)  :: fractional_std(:,:)
-
- ! Object for sampling from a lognormal or gamma distribution
- type(pdf_sampler_type), intent(in) :: pdf_sampler
-
  ! This routine has been coded using the "alpha" overlap parameter
  ! of Hogan and Illingworth (2000). If the following logical is
  ! present and true then the input is interpretted to be the "beta"
@@ -295,42 +288,24 @@ contains
  ! Total cloud cover using cloud fraction and overlap parameter
  real(jprb), intent(out) :: total_cloud_cover(istartcol:iendcol)
 
- ! Local variables
-
- ! Cumulative cloud cover from TOA to the base of each layer
- ! cos: original (lev). Future can not be demoted since we move jcol innermost
- ! we need to retain the independent jcol calculations
- real(jprb) :: cum_cloud_cover(istartcol:iendcol,nlev)
-
- ! Scaled random number for finding cloud
- real(jprb) :: trigger
-
- ! Uniform deviates between 0 and 1
+  ! Uniform deviates between 0 and 1
  ! cos: original (ng). Future demote to jcol only
- real(jprb) :: rand_top(istartcol:iendcol,ng)
+ real(jprb), intent(out) :: rand_top(istartcol:iendcol,ng)
 
- ! Overlap parameter of inhomogeneities
- !cos: original (nlev). Future can not be demoted
- real(jprb) :: overlap_param_inhom(istartcol:iendcol,nlev-1)
+ real(jprb), intent(out), dimension(istartcol:iendcol, nlev-1) :: pair_cloud_cover, overhang
 
- ! Seed for random number generator and stream for producing random
- ! numbers
- !cos: oritinal (scalar)
- type(randomnumberstream) :: random_stream(istartcol:iendcol)
+ real(jprb), intent(out) :: cum_cloud_cover(istartcol:iendcol,nlev)
+
+ real(jprb), intent(out) :: overlap_param_inhom(istartcol:iendcol,nlev-1)
+
+ type(randomnumberstream), intent(out) :: random_stream(istartcol:iendcol)
+
+ integer, intent(out), dimension(istartcol:iendcol) :: ibegin, iend
+
+ ! Local variables
  
- ! First and last cloudy layers
- ! cos: origina (scalar). Need to remain like that
- integer :: ibegin(istartcol:iendcol), iend(istartcol:iendcol)
- integer :: itrigger
-
  ! Loop index for model level and g-point
- integer :: jlev, jg, jcol
-
- ! Cloud cover of a pair of layers, and amount by which cloud at
- ! next level increases total cloud cover as seen from above
-  ! cos: original (nlev+1). Future can not be demoted since we move jcol innermost
- ! we need to retain the independent jcol calculations
- real(jprb), dimension(istartcol:iendcol, nlev-1) :: pair_cloud_cover, overhang
+ integer :: jlev, jcol
 
  real(jprb) :: hook_handle
 
@@ -410,38 +385,6 @@ contains
       ! Compute ng random numbers to use to locate cloud top
       call uniform_distribution(rand_top(jcol,:), random_stream(jcol))
     endif
-  enddo
-
-  do jg = 1,ng
-    do jcol=istartcol,iendcol
-      if (total_cloud_cover(jcol) >= frac_threshold) then
-      ! Loop over ng columns
-        ! cos: the random num generation was before out of the innermost loop. 
-        ! With the reordering had to be brought inside. We would need to refactor 
-        ! the random number generation subroutines to recover performance
-
-        ! Find the cloud top height corresponding to the current
-        ! random number, and store in itrigger
-        trigger = rand_top(jcol,jg) * total_cloud_cover(jcol)
-        jlev = ibegin(jcol)
-        do while (trigger > cum_cloud_cover(jcol,jlev) .and. jlev < iend(jcol))
-          jlev = jlev + 1
-        end do
-        itrigger = jlev
-
-        if (i_overlap_scheme /= IOverlapExponential) then
-          call generate_column_exp_ran_lr(ng, nlev, jg, random_stream(jcol), pdf_sampler, &
-              &  frac(jcol,:), pair_cloud_cover(jcol,:), &
-              &  cum_cloud_cover(jcol,:), overhang(jcol,:), fractional_std(jcol,:), overlap_param_inhom(jcol,:), &
-              &  itrigger, iend(jcol), od_scaling(jcol,:,:))
-        else
-          call generate_column_exp_exp_lr(ng, nlev, jg, random_stream(jcol), pdf_sampler, &
-              &  frac(jcol,:), pair_cloud_cover(jcol,:), &
-              &  cum_cloud_cover(jcol,:), overhang(jcol,:), fractional_std(jcol,:), overlap_param_inhom(jcol,:), &
-              &  itrigger, iend(jcol), od_scaling(jcol,:,:))
-        end if      
-      endif
-    end do
   enddo
 
   if (lhook) call dr_hook('radiation_cloud_generator:cloud_generator',1,hook_handle)
