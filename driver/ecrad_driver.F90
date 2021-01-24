@@ -321,7 +321,7 @@ program ecrad_driver
   config%run_solvers_in_parallel = driver_config%do_parallel
 
   if (driver_config%iverbose >= 2) then
-    write(nulout,'(a,I1)')  'Number of columns per block: ', driver_config%nblocksize
+    write(nulout,'(a,i0)')  'Number of columns per block: ', driver_config%nblocksize
   end if
 
   ! Option of repeating calculation multiple time for more accurate
