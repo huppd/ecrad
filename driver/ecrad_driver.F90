@@ -320,6 +320,10 @@ program ecrad_driver
 
   config%run_solvers_in_parallel = driver_config%do_parallel
 
+  if (driver_config%iverbose >= 2) then
+    write(nulout,'(a,IO)')  'Number of columns per block: ', driver_config%nblocksize
+  end if
+
   ! Option of repeating calculation multiple time for more accurate
   ! profiling
   do jrepeat = 1,driver_config%nrepeat
@@ -328,67 +332,28 @@ program ecrad_driver
     call start_report_step(report, "computation")
   endif
 #endif
+  ! Compute number of blocks to process
+    nblock = (driver_config%iendcol - driver_config%istartcol &
+              &  + driver_config%nblocksize) / driver_config%nblocksize
     if (driver_config%do_parallel) then
       ! Run radiation scheme over blocks of columns in parallel
-      
-      ! Compute number of blocks to process
-      nblock = (driver_config%iendcol - driver_config%istartcol &
-           &  + driver_config%nblocksize) / driver_config%nblocksize
-     
       tstart = omp_get_wtime() 
       !$OMP PARALLEL DO PRIVATE(istartcol, iendcol) SCHEDULE(RUNTIME)
       do jblock = 1, nblock
-        ! Specify the range of columns to process.
-        istartcol = (jblock-1) * driver_config%nblocksize &
-             &    + driver_config%istartcol
-        iendcol = min(istartcol + driver_config%nblocksize - 1, &
-             &        driver_config%iendcol)
-          
-        if (driver_config%iverbose >= 3) then
-          write(nulout,'(a,i0,a,i0,a,i0)')  'Thread ', omp_get_thread_num(), &
-               &  ' processing columns ', istartcol, '-', iendcol
-        end if
-        
-        if (is_complex_surface) then
-          call surface_intermediate%calc_boundary_conditions(driver_config%istartcol, &
-               &  driver_config%iendcol, config, surface, thermodynamics, gas, single_level)
-        end if
-        
-        ! Call the ECRAD radiation scheme
-        call radiation(ncol, nlev, istartcol, iendcol, config, &
-             &  single_level, thermodynamics, gas, cloud, aerosol, flux)
-        
-        if (is_complex_surface) then
-          call surface_intermediate%partition_fluxes(driver_config%istartcol, &
-               &  driver_config%iendcol, config, surface, flux, surface_flux)
-        end if
-        
+        call run_radiation_block(aerosol, cloud, config, driver_config, flux, gas, iendcol, is_complex_surface, istartcol, jblock,&
+                                 &ncol, nlev, single_level, surface, surface_flux, surface_intermediate, thermodynamics)
       end do
       !$OMP END PARALLEL DO
       tstop = omp_get_wtime()
       write(nulout, '(a,g11.5,a)') 'Time elapsed in radiative transfer: ', tstop-tstart, ' seconds'
       
     else
-      ! Run radiation scheme serially
-      if (driver_config%iverbose >= 3) then
-        write(nulout,'(a,i0,a)')  'Processing ', ncol, ' columns'
-      end if
-      
-      if (is_complex_surface) then
-        call surface_intermediate%calc_boundary_conditions(driver_config%istartcol, &
-             &  driver_config%iendcol, config, surface, thermodynamics, gas, single_level)
-      end if
-      
-      ! Call the ECRAD radiation scheme
-      call radiation(ncol, nlev, driver_config%istartcol, driver_config%iendcol, &
-           &  config, single_level, thermodynamics, gas, cloud, aerosol, flux)
-      
-      if (is_complex_surface) then
-        call surface_intermediate%partition_fluxes(driver_config%istartcol, &
-             &  driver_config%iendcol, config, surface, flux, surface_flux)
-      end if
-      
-    end if
+      ! Compute number of blocks to process
+      do jblock = 1, nblock
+        call run_radiation_block(aerosol, cloud, config, driver_config, flux, gas, iendcol, is_complex_surface, istartcol, jblock,&
+                                 &ncol, nlev, single_level, surface, surface_flux, surface_intermediate, thermodynamics)
+      end do
+    endif
 #ifdef XML_REPORT_SUPPORTED
   if (driver_config%generate_report) then
     call finish_current_report_step(report, C_TRUE)
@@ -436,6 +401,58 @@ program ecrad_driver
      call save_report(report)
      call delete_report(report)
   endif
+contains
+
+    subroutine run_radiation_block(aerosol, cloud, config, driver_config, flux, gas, iendcol, is_complex_surface, istartcol,&
+     &jblock, ncol, nlev, single_level, surface, surface_flux, surface_intermediate, thermodynamics)
+        use radiation_io,             only : nulout
+        implicit none
+        type(aerosol_type) :: aerosol
+        type(cloud_type) :: cloud
+        type(config_type) :: config
+        type(driver_config_type) :: driver_config
+        type(flux_type) :: flux
+        type(gas_type) :: gas
+        integer :: iendcol
+        logical :: is_complex_surface
+        integer :: istartcol
+        integer :: jblock
+        integer :: ncol
+        integer :: nlev
+        integer :: NULOUT
+        type(single_level_type) :: single_level
+        type(surface_type) :: surface
+        type(surface_flux_type) :: surface_flux
+        type(surface_intermediate_type) :: surface_intermediate
+        type(thermodynamics_type) :: thermodynamics
+        integer, external :: omp_get_thread_num
+
+        ! Specify the range of columns to process.
+        istartcol = (jblock-1) * driver_config%nblocksize &
+             + driver_config%istartcol
+        iendcol = min(istartcol + driver_config%nblocksize - 1, &
+             driver_config%iendcol)
+
+        if (driver_config%iverbose >= 3) then
+          write(nulout,'(a,i0,a,i0,a,i0)')  'Thread ', omp_get_thread_num(), &
+               ' processing columns ', istartcol, '-', iendcol
+        end if
+
+        if (is_complex_surface) then
+          call surface_intermediate%calc_boundary_conditions(driver_config%istartcol, &
+               driver_config%iendcol, config, surface, thermodynamics, gas, single_level)
+        end if
+
+        ! Call the ECRAD radiation scheme
+        call radiation(ncol, nlev, istartcol, iendcol, config, &
+             single_level, thermodynamics, gas, cloud, aerosol, flux)
+
+        if (is_complex_surface) then
+          call surface_intermediate%partition_fluxes(driver_config%istartcol, &
+               driver_config%iendcol, config, surface, flux, surface_flux)
+        end if
+    end subroutine
+
 #endif
 
 end program ecrad_driver
