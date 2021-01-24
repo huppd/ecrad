@@ -321,7 +321,7 @@ program ecrad_driver
   config%run_solvers_in_parallel = driver_config%do_parallel
 
   if (driver_config%iverbose >= 2) then
-    write(nulout,'(a,IO)')  'Number of columns per block: ', driver_config%nblocksize
+    write(nulout,'(a,I1)')  'Number of columns per block: ', driver_config%nblocksize
   end if
 
   ! Option of repeating calculation multiple time for more accurate
@@ -401,11 +401,11 @@ program ecrad_driver
      call save_report(report)
      call delete_report(report)
   endif
+#endif
 contains
 
     subroutine run_radiation_block(aerosol, cloud, config, driver_config, flux, gas, iendcol, is_complex_surface, istartcol,&
      &jblock, ncol, nlev, single_level, surface, surface_flux, surface_intermediate, thermodynamics)
-        use radiation_io,             only : nulout
         implicit none
         type(aerosol_type) :: aerosol
         type(cloud_type) :: cloud
@@ -419,7 +419,6 @@ contains
         integer :: jblock
         integer :: ncol
         integer :: nlev
-        integer :: NULOUT
         type(single_level_type) :: single_level
         type(surface_type) :: surface
         type(surface_flux_type) :: surface_flux
@@ -452,7 +451,5 @@ contains
                driver_config%iendcol, config, surface, flux, surface_flux)
         end if
     end subroutine
-
-#endif
 
 end program ecrad_driver
