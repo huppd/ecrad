@@ -68,13 +68,15 @@ REAL(KIND=JPRB)  , INTENT(IN) :: &                  !
                     &   PRAT_N2OCO2(KIDIA:KFDIA,KLEV),PRAT_N2OCO2_1(KIDIA:KFDIA,KLEV), &
                     &   PRAT_O3CO2(KIDIA:KFDIA,KLEV),PRAT_O3CO2_1(KIDIA:KFDIA,KLEV)
            
-REAL(KIND=JPRB) :: ZTAU   (KIDIA:KFDIA,JPGPT,KLEV)
+REAL(KIND=JPRB) :: ZTAU(KIDIA:KFDIA,JPGPT,KLEV)
+REAL(KIND=JPRB) :: ZTAU_REORDERED(KLEV,JPGPT,KIDIA:KFDIA)
 REAL(KIND=JPRB) :: ZTF
 
-INTEGER(KIND=JPIM) :: JI, ITR, JLEV
-INTEGER(KIND=JPIM) :: JLON
+INTEGER(KIND=JPIM) :: JG, ITR, JLEV
+INTEGER(KIND=JPIM) :: JCOL
 
 REAL(KIND=JPRB) :: ZHOOK_HANDLE
+INTEGER  :: NCOL
 
 #include "rrtm_taumol1.intfb.h"
 #include "rrtm_taumol10.intfb.h"
@@ -175,21 +177,22 @@ CALL RRTM_TAUMOL16 (KIDIA,KFDIA,KLEV,ZTAU,&
     ! print*,'ZTAU15= ',sum(ZTAU(:,137:138,:),2)
     ! print*,'ZTAU16= ',sum(ZTAU(:,139:140,:),2)
 
+ZTAU_REORDERED = reshape(ZTAU, shape(ZTAU_REORDERED), order=(/3, 2, 1/))
+POD = reshape(ZTAU_REORDERED, shape(POD), order=(/2, 1, 3/))
 
 !- Loop over g-channels.
-DO JLEV = 1, KLEV
-!cdir unroll=4
-  DO JI = 1, JPGPT
-    DO JLON = KIDIA, KFDIA
-      POD(JI,JLEV,JLON) = ZTAU(JLON,JI,JLEV)
+!DO JLEV = 1, KLEV
+!  DO JG = 1, JPGPT
+!    DO JCOL = KIDIA, KFDIA
+!       POD(JG,JLEV,JCOL) = ZTAU(JCOL,JG,JLEV)
 
-!      ZTF = ZTAU(JLON,JI,JLEV)*1.66_jprb/(BPADE+ZTAU(JLON,JI,JLEV)*1.66_jprb)
-!      ITR=INT(5.E+03_JPRB*ZTF+0.5_JPRB)
-!      write(37,*) pod(ji,jlev,jlon), 1.0_JPRB - TRANS(ITR), ztf
+!!      ZTF = ZTAU(JLON,JI,JLEV)*1.66_jprb/(BPADE+ZTAU(JLON,JI,JLEV)*1.66_jprb)
+!!      ITR=INT(5.E+03_JPRB*ZTF+0.5_JPRB)
+!!      write(37,*) pod(ji,jlev,jlon), 1.0_JPRB - TRANS(ITR), ztf
 
-    ENDDO
-  ENDDO
-ENDDO
+!    ENDDO
+!  ENDDO
+!ENDDO
 !     -----------------------------------------------------------------
 
 IF (LHOOK) CALL DR_HOOK('RRTM_GAS_OPTICAL_DEPTH',1,ZHOOK_HANDLE)

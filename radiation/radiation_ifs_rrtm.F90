@@ -464,9 +464,9 @@ contains
 
     ! SRTM_GAS_OPTICAL_DEPTH will not initialize profiles when the sun
     ! is below the horizon, so we do it here
-    ZOD_SW(istartcol:iendcol,:,:)  = 0.0_jprb
-    ZSSA_SW(istartcol:iendcol,:,:) = 0.0_jprb
-    ZINCSOL(istartcol:iendcol,:)   = 0.0_jprb
+    ZOD_SW  = 0.0_jprb
+    ZSSA_SW = 0.0_jprb
+    ZINCSOL = 0.0_jprb
 
     CALL SRTM_GAS_OPTICAL_DEPTH &
          &( istartcol, iendcol , nlev  , ZONEMINUS_ARRAY,&
@@ -516,14 +516,12 @@ contains
       end do
     else
       ! G points have not been reordered
+      ZSSA_SW = ZSSA_SW(:, nlev:1:-1, :)
+      ssa_sw = reshape(ZSSA_SW, shape(ssa_sw), order=(/3, 2, 1/))
+      ZOD_SW = ZOD_SW(:, nlev:1:-1, :)
+      od_sw = reshape(ZOD_SW, shape(od_sw), order=(/3, 2, 1/))
+      od_sw = max(config%min_gas_od_sw, od_sw)
       do jg = 1,config%n_g_sw
-        do jlev = 1,nlev
-          do jcol = istartcol,iendcol
-            ! Check for negative optical depth
-            od_sw (jg,nlev+1-jlev,jcol) = max(config%min_gas_od_sw, ZOD_SW(jcol,jlev,jg))
-            ssa_sw(jg,nlev+1-jlev,jcol) = ZSSA_SW(jcol,jlev,jg)
-          end do
-        end do
         if (present(incoming_sw)) then
           incoming_sw(jg,:) &
                &  = incoming_sw_scale(:) * ZINCSOL(:,jg)
@@ -809,12 +807,15 @@ contains
       end do
     else
       ! G points have not been reordered
-      do jcol = istartcol,iendcol
-        do jlev = 1,nlev
-          ! Check for negative optical depth
-          od_lw(:,jlev,jcol) = max(config%min_gas_od_lw, ZOD_LW(:,nlev+1-jlev,jcol))
-        end do
-      end do
+      od_lw = ZOD_LW
+      od_lw = od_lw(:,nlev:1:-1,:)
+      od_lw =  max(config%min_gas_od_lw, od_lw)
+!      do jcol = istartcol,iendcol
+!        do jlev = 1,nlev
+!          ! Check for negative optical depth
+!          od_lw(:,jlev,jcol) = max(config%min_gas_od_lw, ZOD_LW(:,nlev+1-jlev,jcol))
+!        end do
+!      end do
     end if
 
     if (lhook) call dr_hook('radiation_ifs_rrtm:gas_optics_lw',1,hook_handle)
