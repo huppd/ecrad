@@ -231,8 +231,8 @@ contains
       call gas%get(IH2O, IMassMixingRatio, h2o_mmr, istartcol=istartcol)
 
       ! Loop over position
-      do jlev = istartlev,iendlev
-        do jcol = istartcol,iendcol
+      do jcol = istartcol,iendcol
+        do jlev = istartlev,iendlev
           ! Compute relative humidity with respect to liquid
           ! saturation and the index to the relative-humidity index of
           ! hydrophilic-aerosol data
@@ -381,6 +381,8 @@ contains
     ! longwave spectrum
     real(jprb), dimension(config%n_bands_sw) &
          & :: od_sw_aerosol, scat_sw_aerosol, scat_g_sw_aerosol, local_od_sw
+    real(jprb) :: od_sw_aerosol_vec(1:config%n_g_sw), scat_sw_aerosol_vec(1:config%n_g_sw),&
+                  &scat_g_sw_aerosol_vec(1:config%n_g_sw)
 
     real(jprb) :: h2o_mmr(istartcol:iendcol,nlev)
 
@@ -393,6 +395,7 @@ contains
     ! Temporary extinction and scattering optical depths of aerosol
     ! plus gas
     real(jprb) :: local_od, local_scat
+    real(jprb) :: local_od_vec(1:config%n_g_sw), local_scat_vec(1:config%n_g_sw)
 
     ! Loop indices for column, level, g point, band and aerosol type
     integer :: jcol, jlev, jg, jtype
@@ -402,6 +405,7 @@ contains
 
     ! Indices to spectral band and relative humidity look-up table
     integer :: iband, irh
+    integer :: iband_vec(1:config%n_g_sw)
 
     ! Pointer to the aerosol optics coefficients for brevity of access
     type(aerosol_optics_type), pointer :: ao
@@ -509,18 +513,22 @@ contains
           ! properties (noting that any gas scattering will have an
           ! asymmetry factor of zero)
           if (od_sw_aerosol(1) > 0.0_jprb) then
+            iband_vec =  config%i_band_from_reordered_g_sw
             do jg = 1,config%n_g_sw
               iband = config%i_band_from_reordered_g_sw(jg)
-              local_od = od_sw(jg,jlev,jcol) + od_sw_aerosol(iband)
-              local_scat = ssa_sw(jg,jlev,jcol) * od_sw(jg,jlev,jcol) &
-                   &  + scat_sw_aerosol(iband)
-              ! Note that asymmetry_sw of gases is zero so the following
-              ! simply weights the aerosol asymmetry by the scattering
-              ! optical depth
-              g_sw(jg,jlev,jcol) = scat_g_sw_aerosol(iband) / local_scat
-              ssa_sw(jg,jlev,jcol) = local_scat / local_od
-              od_sw (jg,jlev,jcol) = local_od
+              od_sw_aerosol_vec(jg) = od_sw_aerosol(iband)
+              scat_sw_aerosol_vec(jg) = scat_sw_aerosol(iband)
+              scat_g_sw_aerosol_vec(jg) = scat_g_sw_aerosol(iband)
             end do
+            local_od_vec = od_sw_aerosol_vec + od_sw(:,jlev,jcol)
+            local_scat_vec = ssa_sw(:,jlev,jcol) * od_sw(:,jlev,jcol) &
+                   &  + scat_sw_aerosol_vec
+            ! Note that asymmetry_sw of gases is zero so the following
+            ! simply weights the aerosol asymmetry by the scattering
+            ! optical depth
+            g_sw(:,jlev,jcol) = scat_g_sw_aerosol_vec / local_scat_vec
+            ssa_sw(:,jlev,jcol) = local_scat_vec / local_od_vec
+            od_sw (:,jlev,jcol) = local_od_vec
           end if
         end do ! Loop over column
       end do ! Loop over level
