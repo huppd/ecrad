@@ -17,7 +17,7 @@ USE YOMHOOK   ,ONLY : LHOOK,   DR_HOOK
 USE PARRRTM  , ONLY : JPBAND   ,JPXSEC
 USE YOERRTM  , ONLY : JPGPT
 USE YOERRTAB , ONLY : TRANS    ,BPADE
-
+use radiation_utils,          only : reorder_dims_1_3, reorder_dims_1_2
 
 IMPLICIT NONE
 
@@ -176,9 +176,8 @@ CALL RRTM_TAUMOL16 (KIDIA,KFDIA,KLEV,ZTAU,&
     ! print*,'ZTAU14= ',sum(ZTAU(:,135:136,:),2)
     ! print*,'ZTAU15= ',sum(ZTAU(:,137:138,:),2)
     ! print*,'ZTAU16= ',sum(ZTAU(:,139:140,:),2)
-
-ZTAU_REORDERED = reshape(ZTAU, shape(ZTAU_REORDERED), order=(/3, 2, 1/))
-POD = reshape(ZTAU_REORDERED, shape(POD), order=(/2, 1, 3/))
+call reorder_dims_1_3(ZTAU, ZTAU_REORDERED)
+call reorder_dims_1_2(ZTAU_REORDERED, POD)
 
 !- Loop over g-channels.
 !DO JLEV = 1, KLEV

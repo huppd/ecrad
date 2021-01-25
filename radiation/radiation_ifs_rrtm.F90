@@ -273,6 +273,7 @@ contains
     use radiation_thermodynamics, only : thermodynamics_type
     use radiation_single_level,   only : single_level_type
     use radiation_gas
+    use radiation_utils,          only : reorder_dims_1_3
 
     integer, intent(in) :: ncol               ! number of columns
     integer, intent(in) :: nlev               ! number of model levels
@@ -517,9 +518,9 @@ contains
     else
       ! G points have not been reordered
       ZSSA_SW = ZSSA_SW(:, nlev:1:-1, :)
-      ssa_sw = reshape(ZSSA_SW, shape(ssa_sw), order=(/3, 2, 1/))
+      call reorder_dims_1_3(ZSSA_SW, ssa_sw)
       ZOD_SW = ZOD_SW(:, nlev:1:-1, :)
-      od_sw = reshape(ZOD_SW, shape(od_sw), order=(/3, 2, 1/))
+      call reorder_dims_1_3(ZOD_SW, od_sw)
       od_sw = max(config%min_gas_od_sw, od_sw)
       do jg = 1,config%n_g_sw
         if (present(incoming_sw)) then
@@ -530,7 +531,6 @@ contains
     end if
 
     if (lhook) call dr_hook('radiation_ifs_rrtm:gas_optics_sw',1,hook_handle)
-
   end subroutine gas_optics_sw
 
   !---------------------------------------------------------------------
