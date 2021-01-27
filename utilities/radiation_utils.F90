@@ -47,13 +47,14 @@ module radiation_utils
           ri = 1
           eri = n_rows
           do while (eri .gt. ri)
+            ci = 1
             eci = ci + buf_size - 1
             do while(eci .le. n_cols)
               call swap(arr(ci:eci, ri, li),  arr(ci:eci, eri, li), buf)
               ci = ci + buf_size
               eci = eci + buf_size
             end do
-            do ci = 1, n_cols
+            do ci = ci, n_cols
               val = arr(ci, ri, li)
               arr(ci, ri, li) = arr(ci, eri, li)
               arr(ci, eri, li) = val
