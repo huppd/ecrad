@@ -273,7 +273,7 @@ contains
     use radiation_thermodynamics, only : thermodynamics_type
     use radiation_single_level,   only : single_level_type
     use radiation_gas
-    use radiation_utils,          only : reorder_dims_1_3
+    use radiation_utils,          only : reorder_dims_1_3, reverse_dim_2
 
     integer, intent(in) :: ncol               ! number of columns
     integer, intent(in) :: nlev               ! number of model levels
@@ -517,9 +517,9 @@ contains
       end do
     else
       ! G points have not been reordered
-      ZSSA_SW = ZSSA_SW(:, nlev:1:-1, :)
+      call reverse_dim_2(ZSSA_SW)
       call reorder_dims_1_3(ZSSA_SW, ssa_sw)
-      ZOD_SW = ZOD_SW(:, nlev:1:-1, :)
+      call reverse_dim_2(ZOD_SW)
       call reorder_dims_1_3(ZOD_SW, od_sw)
       od_sw = max(config%min_gas_od_sw, od_sw)
       do jg = 1,config%n_g_sw
@@ -552,6 +552,7 @@ contains
     use radiation_thermodynamics, only : thermodynamics_type
     use radiation_single_level,   only : single_level_type
     use radiation_gas
+    use radiation_utils,          only : reverse_dim_2
 
     integer, intent(in) :: ncol               ! number of columns
     integer, intent(in) :: nlev               ! number of model levels
@@ -808,7 +809,8 @@ contains
     else
       ! G points have not been reordered
       od_lw = ZOD_LW
-      od_lw = od_lw(:,nlev:1:-1,:)
+      call reverse_dim_2(od_lw)
+      !od_lw = od_lw(:,nlev:1:-1,:)
       od_lw =  max(config%min_gas_od_lw, od_lw)
 !      do jcol = istartcol,iendcol
 !        do jlev = 1,nlev
