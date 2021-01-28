@@ -46,9 +46,9 @@ contains
     integer,    intent(in) :: istartcol
     integer,    intent(in) :: iendcol
     logical,    intent(in) :: mask(istartcol:iendcol)
-    real(jprb), intent(in) :: transmittance(ng,nlev,istartcol:iendcol)
+    real(jprb), intent(in) :: transmittance(istartcol:iendcol,ng,nlev)
 
-    real(jprb), intent(in) :: flux_up_surf(ng,istartcol:iendcol) ! Upwelling surface spectral flux (W m-2)
+    real(jprb), intent(in) :: flux_up_surf(istartcol:iendcol,ng) ! Upwelling surface spectral flux (W m-2)
     
     ! Output
     real(jprb), intent(out) :: lw_derivatives(:,:) ! dimensioned (ncol,nlev+1)
@@ -66,13 +66,13 @@ contains
     do jcol = istartcol,iendcol
       if(mask(jcol)) then
         ! Initialize the derivatives at the surface
-        lw_derivatives_g = flux_up_surf(:,jcol) / sum(flux_up_surf(:,jcol))
+        lw_derivatives_g = flux_up_surf(jcol,:) / sum(flux_up_surf(jcol,:))
         lw_derivatives(jcol, nlev+1) = 1.0_jprb
 
         ! Move up through the atmosphere computing the derivatives at each
         ! half-level
         do jlev = nlev,1,-1
-          lw_derivatives_g = lw_derivatives_g * transmittance(:,jlev,jcol)
+          lw_derivatives_g = lw_derivatives_g * transmittance(jcol,:,jlev)
           lw_derivatives(jcol,jlev) = sum(lw_derivatives_g)
         end do
       end if
@@ -98,8 +98,8 @@ contains
     integer,    intent(in) :: nlev ! number of levels
     integer,    intent(in) :: istartcol, iendcol ! Index of column for output
     logical,    intent(in) :: mask(istartcol:iendcol)
-    real(jprb), intent(in) :: transmittance(ng,nlev,istartcol:iendcol)
-    real(jprb), intent(in) :: flux_up_surf(ng,istartcol:iendcol) ! Upwelling surface spectral flux (W m-2)
+    real(jprb), intent(in) :: transmittance(istartcol:iendcol,ng,nlev)
+    real(jprb), intent(in) :: flux_up_surf(istartcol:iendcol,ng) ! Upwelling surface spectral flux (W m-2)
     real(jprb), intent(in) :: weight(istartcol:iendcol) ! Weight new values against existing
     
     ! Output
@@ -118,14 +118,14 @@ contains
     do jcol = istartcol, iendcol
       if(mask(jcol)) then
         ! Initialize the derivatives at the surface
-        lw_derivatives_g = flux_up_surf(:,jcol) / sum(flux_up_surf(:,jcol))
+        lw_derivatives_g = flux_up_surf(jcol,:) / sum(flux_up_surf(jcol,:))
         ! This value must be 1 so no weighting applied
         lw_derivatives(jcol, nlev+1) = 1.0_jprb
 
         ! Move up through the atmosphere computing the derivatives at each
         ! half-level
         do jlev = nlev,1,-1
-          lw_derivatives_g = lw_derivatives_g * transmittance(:,jlev,jcol)
+          lw_derivatives_g = lw_derivatives_g * transmittance(jcol,:,jlev)
           lw_derivatives(jcol,jlev) = (1.0_jprb - weight(jcol)) * lw_derivatives(jcol,jlev) &
                &                    + weight(jcol) * sum(lw_derivatives_g)
         end do

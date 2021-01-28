@@ -61,25 +61,25 @@ contains
 
     ! Gas and aerosol optical depth, single-scattering albedo and
     ! asymmetry factor at each longwave g-point
-    real(jprb), intent(in), dimension(config%n_g_lw, nlev, istartcol:iendcol) :: &
+    real(jprb), intent(in), dimension(istartcol:iendcol, config%n_g_lw, nlev) :: &
          &  od
-    real(jprb), intent(in), dimension(config%n_g_lw_if_scattering, nlev, istartcol:iendcol) :: &
+    real(jprb), intent(in), dimension(istartcol:iendcol, config%n_g_lw_if_scattering, nlev) :: &
          &  ssa, g
 
     ! Cloud and precipitation optical depth, single-scattering albedo and
     ! asymmetry factor in each longwave band
-    real(jprb), intent(in), dimension(config%n_bands_lw,nlev,istartcol:iendcol)   :: &
+    real(jprb), intent(in), dimension(istartcol:iendcol, config%n_bands_lw,nlev)   :: &
          &  od_cloud
-    real(jprb), intent(in), dimension(config%n_bands_lw_if_scattering, &
-         &  nlev,istartcol:iendcol) :: ssa_cloud, g_cloud
+    real(jprb), intent(in), dimension(istartcol:iendcol, config%n_bands_lw_if_scattering, &
+         &  nlev) :: ssa_cloud, g_cloud
 
     ! Planck function at each half-level and the surface
-    real(jprb), intent(in), dimension(config%n_g_lw,nlev+1,istartcol:iendcol) :: &
+    real(jprb), intent(in), dimension(istartcol:iendcol,config%n_g_lw,nlev+1) :: &
          &  planck_hl
 
     ! Emission (Planck*emissivity) and albedo (1-emissivity) at the
     ! surface at each longwave g-point
-    real(jprb), intent(in), dimension(config%n_g_lw, istartcol:iendcol) :: emission, albedo
+    real(jprb), intent(in), dimension(istartcol:iendcol, config%n_g_lw) :: emission, albedo
 
     ! Output
     type(flux_type), intent(inout):: flux
@@ -88,42 +88,42 @@ contains
 
     ! Diffuse reflectance and transmittance for each layer in clear
     ! and all skies
-    real(jprb), dimension(config%n_g_lw, nlev, istartcol:iendcol) :: ref_clear, trans_clear, reflectance, transmittance
+    real(jprb), dimension(istartcol:iendcol, config%n_g_lw, nlev) :: ref_clear, trans_clear, reflectance, transmittance
 
     ! Emission by a layer into the upwelling or downwelling diffuse
     ! streams, in clear and all skies
-    real(jprb), dimension(config%n_g_lw, nlev, istartcol:iendcol) :: source_up_clear, source_dn_clear, source_up, source_dn
+    real(jprb), dimension(istartcol:iendcol, config%n_g_lw, nlev) :: source_up_clear, source_dn_clear, source_up, source_dn
 
     ! Fluxes per g point
-    real(jprb), dimension(config%n_g_lw, nlev+1, istartcol:iendcol) :: flux_up, flux_dn
-    real(jprb), dimension(config%n_g_lw, nlev+1, istartcol:iendcol) :: flux_up_clear, flux_dn_clear
+    real(jprb), dimension(istartcol:iendcol, config%n_g_lw, nlev+1) :: flux_up, flux_dn
+    real(jprb), dimension(istartcol:iendcol, config%n_g_lw, nlev+1) :: flux_up_clear, flux_dn_clear
 
     ! Combined gas+aerosol+cloud optical depth, single scattering
     ! albedo and asymmetry factor
-    real(jprb), dimension(config%n_g_lw, nlev, istartcol:iendcol) :: od_total, ssa_total, g_total
+    real(jprb), dimension(istartcol:iendcol, config%n_g_lw, nlev) :: od_total, ssa_total, g_total
 
     ! Two-stream coefficients
-    real(jprb), dimension(config%n_g_lw, istartcol:iendcol) :: gamma1, gamma2
+    real(jprb), dimension(istartcol:iendcol, config%n_g_lw) :: gamma1, gamma2
 
     ! Optical depth scaling from the cloud generator, zero indicating
     ! clear skies
-    real(jprb), dimension(config%n_g_lw, nlev, istartcol:iendcol) :: od_scaling
+    real(jprb), dimension(istartcol:iendcol, config%n_g_lw, nlev) :: od_scaling
 
     ! Modified optical depth after McICA scaling to represent cloud
     ! inhomogeneity
-    real(jprb), dimension(config%n_g_lw, nlev, istartcol:iendcol) :: od_cloud_new
+    real(jprb), dimension(istartcol:iendcol, config%n_g_lw, nlev) :: od_cloud_new
 
     ! Total cloud cover output from the cloud generator
     real(jprb), dimension(istartcol:iendcol) :: total_cloud_cover
 
     ! Identify clear-sky layers
-    logical :: is_clear_sky_layer(nlev, istartcol:iendcol)
+    logical :: is_clear_sky_layer(istartcol:iendcol, nlev)
 
     ! Index of the highest cloudy layer
     integer :: i_cloud_top(istartcol:iendcol)
 
     ! logical multi-purpose 2d (nlev, jcol) mask
-    logical :: mask_2d(nlev, istartcol:iendcol)
+    logical :: mask_2d(istartcol:iendcol, nlev)
     ! logical multi-purpose 1d (jcol) mask
     logical :: mask_1d(istartcol:iendcol)
 
@@ -149,12 +149,12 @@ contains
       g_total   = g
       mask_1d = .TRUE.
       do jlev = 1, nlev
-        call calc_two_stream_gammas_lw(ng, istartcol, iendcol, mask_1d, ssa_total(:,jlev,:), g_total(:,jlev,:), &
+        call calc_two_stream_gammas_lw(ng, istartcol, iendcol, mask_1d, ssa_total(:,:,jlev), g_total(:,:,jlev), &
         &  gamma1, gamma2)
         call calc_reflectance_transmittance_lw(ng, istartcol, iendcol, mask_1d, &
-             &  od(:,jlev,:), gamma1, gamma2, &
-             &  planck_hl(:,jlev,:), planck_hl(:,jlev+1,:), &
-             &  ref_clear(:,jlev,:), trans_clear(:,jlev,:), source_up_clear(:,jlev,:), source_dn_clear(:,jlev,:))
+             &  od(:,:,jlev), gamma1, gamma2, &
+             &  planck_hl(:,:,jlev), planck_hl(:,:,jlev+1), &
+             &  ref_clear(:,:,jlev), trans_clear(:,:,jlev), source_up_clear(:,:,jlev), source_dn_clear(:,:,jlev))
       end do
       ! Then use adding method to compute fluxes
       call adding_ica_lw(ng, nlev, istartcol, iendcol, mask_1d, &
@@ -166,9 +166,9 @@ contains
       mask_2d = .TRUE.
       mask_1d = .TRUE.
       do jlev = 1,nlev
-        call calc_no_scattering_transmittance_lw(ng, istartcol, iendcol, mask_1d, od(:,jlev,:), &
-        &  planck_hl(:,jlev,:), planck_hl(:,jlev+1,:), &
-        &  trans_clear(:,jlev,:), source_up_clear(:,jlev,:), source_dn_clear(:,jlev,:))
+        call calc_no_scattering_transmittance_lw(ng, istartcol, iendcol, mask_1d, od(:,:,jlev), &
+        &  planck_hl(:,:,jlev), planck_hl(:,:,jlev+1), &
+        &  trans_clear(:,:,jlev), source_up_clear(:,:,jlev), source_dn_clear(:,:,jlev))
       end do
       ! Loop through columns
       ! Simpler down-then-up method to compute fluxes
@@ -184,10 +184,10 @@ contains
     ! Loop through columns
     do jcol = istartcol,iendcol
       ! Sum over g-points to compute broadband fluxes
-      flux%lw_up_clear(jcol,:) = sum(flux_up_clear(:,:,jcol),1)
-      flux%lw_dn_clear(jcol,:) = sum(flux_dn_clear(:,:,jcol),1)
+      flux%lw_up_clear(jcol,:) = sum(flux_up_clear(jcol,:,:),1)
+      flux%lw_dn_clear(jcol,:) = sum(flux_dn_clear(jcol,:,:),1)
       ! Store surface spectral downwelling fluxes
-      flux%lw_dn_surf_clear_g(:,jcol) = flux_dn_clear(:,nlev+1,jcol)
+      flux%lw_dn_surf_clear_g(:,jcol) = flux_dn_clear(jcol,:,nlev+1)
     end do
 
     ! Loop through columns
@@ -199,13 +199,13 @@ contains
            &  config%cloud_fraction_threshold, &
            &  cloud%fraction(jcol,:), cloud%overlap_param(jcol,:), &
            &  config%cloud_inhom_decorr_scaling, cloud%fractional_std(jcol,:), &
-           &  config%pdf_sampler, od_scaling(:,:,jcol), total_cloud_cover(jcol), &
+           &  config%pdf_sampler, od_scaling(jcol,:,:), total_cloud_cover(jcol), &
            &  is_beta_overlap=config%use_beta_overlap)
       
       ! Store total cloud cover
       flux%cloud_cover_lw(jcol) = total_cloud_cover(jcol)
     end do
-      
+
     is_clear_sky_layer(:,:) = .true.
     i_cloud_top(:) = nlev+1
     ! Loop through columns
@@ -214,15 +214,15 @@ contains
         if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
           ! Compute combined gas+aerosol+cloud optical properties
           if (cloud%fraction(jcol,jlev) >= config%cloud_fraction_threshold) then
-            is_clear_sky_layer(jlev,jcol) = .false.
+            is_clear_sky_layer(jcol,jlev) = .false.
             ! Get index to the first cloudy layer from the top
             if (i_cloud_top(jcol) > jlev) then
               i_cloud_top(jcol) = jlev
             end if
             do jg = 1, ng
-              od_cloud_new(jg,jlev,jcol) = od_scaling(jg,jlev,jcol) &
-                 &  * od_cloud(config%i_band_from_reordered_g_lw(jg),jlev,jcol)
-              od_total(jg,jlev,jcol) = od(jg,jlev,jcol) + od_cloud_new(jg,jlev,jcol)
+              od_cloud_new(jcol,jg,jlev) = od_scaling(jcol,jg,jlev) &
+                 &  * od_cloud(jcol,config%i_band_from_reordered_g_lw(jg),jlev)
+              od_total(jcol,jg,jlev) = od(jcol,jg,jlev) + od_cloud_new(jcol,jg,jlev)
             end do
           end if
         end if
@@ -239,22 +239,22 @@ contains
               if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
                 ! Compute combined gas+aerosol+cloud optical properties
                 if (cloud%fraction(jcol,jlev) >= config%cloud_fraction_threshold) then
-                  if (od_total(jg,jlev,jcol) > 0.0_jprb) then
-                    ssa_total(jg,jlev,jcol) = (ssa(jg,jlev,jcol)*od(jg,jlev,jcol) &
-                       &     + ssa_cloud(config%i_band_from_reordered_g_lw(jg),jlev,jcol) &
-                       &     *  od_cloud_new(jg,jlev,jcol)) & 
-                       &     / od_total(jg,jlev,jcol)
+                  if (od_total(jcol,jg,jlev) > 0.0_jprb) then
+                    ssa_total(jcol,jg,jlev) = (ssa(jcol,jg,jlev)*od(jcol,jg,jlev) &
+                       &     + ssa_cloud(jcol,config%i_band_from_reordered_g_lw(jg),jlev) &
+                       &     *  od_cloud_new(jcol,jg,jlev)) & 
+                       &     / od_total(jcol,jg,jlev)
                   else
-                    ssa_total(jg,jlev,jcol) = 0.0_jprb
+                    ssa_total(jcol,jg,jlev) = 0.0_jprb
                   endif
-                  if (ssa_total(jg,jlev,jcol) > 0.0_jprb) then
-                    g_total(jg,jlev,jcol) = (g(jg,jlev,jcol)*ssa(jg,jlev,jcol)*od(jg,jlev,jcol) &
-                       &     +   g_cloud(config%i_band_from_reordered_g_lw(jg),jlev,jcol) &
-                       &     * ssa_cloud(config%i_band_from_reordered_g_lw(jg),jlev,jcol) &
-                       &     *  od_cloud_new(jg,jlev,jcol)) &
-                       &     / (ssa_total(jg,jlev,jcol)*od_total(jg,jlev,jcol))
+                  if (ssa_total(jcol,jg,jlev) > 0.0_jprb) then
+                    g_total(jcol,jg,jlev) = (g(jcol,jg,jlev)*ssa(jcol,jg,jlev)*od(jcol,jg,jlev) &
+                       &     +   g_cloud(jcol,config%i_band_from_reordered_g_lw(jg),jlev) &
+                       &     * ssa_cloud(jcol,config%i_band_from_reordered_g_lw(jg),jlev) &
+                       &     *  od_cloud_new(jcol,jg,jlev)) &
+                       &     / (ssa_total(jcol,jg,jlev)*od_total(jcol,jg,jlev))
                   else
-                    g_total(jg,jlev,jcol) = 0.0_jprb
+                    g_total(jcol,jg,jlev) = 0.0_jprb
                   end if
                 end if
               end if
@@ -268,18 +268,18 @@ contains
               if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
                 ! Compute combined gas+aerosol+cloud optical properties
                 if (cloud%fraction(jcol,jlev) >= config%cloud_fraction_threshold) then
-                  if (od_total(jg,jlev,jcol) > 0.0_jprb) then
-                    ssa_total(jg,jlev,jcol) = ssa_cloud(config%i_band_from_reordered_g_lw(jg),jlev,jcol) &
-                       &     * od_cloud_new(jg,jlev,jcol) / od_total(jg,jlev,jcol)
+                  if (od_total(jcol,jg,jlev) > 0.0_jprb) then
+                    ssa_total(jcol,jg,jlev) = ssa_cloud(jcol,config%i_band_from_reordered_g_lw(jg),jlev) &
+                       &     * od_cloud_new(jcol,jg,jlev) / od_total(jcol,jg,jlev)
                   else
-                    ssa_total(jg,jlev,jcol) = 0.0_jprb
+                    ssa_total(jcol,jg,jlev) = 0.0_jprb
                   endif
-                  if (ssa_total(jg,jlev,jcol) > 0.0_jprb) then
-                    g_total(jg,jlev,jcol) = g_cloud(config%i_band_from_reordered_g_lw(jg),jlev,jcol) &
-                       &     * ssa_cloud(config%i_band_from_reordered_g_lw(jg),jlev,jcol) &
-                       &     *  od_cloud_new(jg,jlev,jcol) / (ssa_total(jg,jlev,jcol)*od_total(jg,jlev,jcol))
+                  if (ssa_total(jcol,jg,jlev) > 0.0_jprb) then
+                    g_total(jcol,jg,jlev) = g_cloud(jcol,config%i_band_from_reordered_g_lw(jg),jlev) &
+                       &     * ssa_cloud(jcol,config%i_band_from_reordered_g_lw(jg),jlev) &
+                       &     *  od_cloud_new(jcol,jg,jlev) / (ssa_total(jcol,jg,jlev)*od_total(jcol,jg,jlev))
                   else
-                    g_total(jg,jlev,jcol) = 0.0_jprb
+                    g_total(jcol,jg,jlev) = 0.0_jprb
                   endif
                 end if
               end if
@@ -294,25 +294,25 @@ contains
           if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
             ! Compute combined gas+aerosol+cloud optical properties
             if (cloud%fraction(jcol,jlev) >= config%cloud_fraction_threshold) then
-              mask_2d(jlev, jcol) = .TRUE.
+              mask_2d(jcol, jlev) = .TRUE.
             end if
           end if
         end do
       end do
       do jlev = 1,nlev
-        call calc_two_stream_gammas_lw(ng, istartcol, iendcol, mask_2d(jlev,:), ssa_total(:,jlev,:), g_total(:,jlev,:), &
+        call calc_two_stream_gammas_lw(ng, istartcol, iendcol, mask_2d(:,jlev), ssa_total(:,:,jlev), g_total(:,:,jlev), &
         &  gamma1, gamma2)
-        call calc_reflectance_transmittance_lw(ng, istartcol, iendcol, mask_2d(jlev,:), &
-             &  od_total(:,jlev,:), gamma1, gamma2, &
-             &  planck_hl(:,jlev,:), planck_hl(:,jlev+1,:), &
-             &  reflectance(:,jlev,:), transmittance(:,jlev,:), source_up(:,jlev,:), source_dn(:,jlev,:))
+        call calc_reflectance_transmittance_lw(ng, istartcol, iendcol, mask_2d(:,jlev), &
+             &  od_total(:,:,jlev), gamma1, gamma2, &
+             &  planck_hl(:,:,jlev), planck_hl(:,:,jlev+1), &
+             &  reflectance(:,:,jlev), transmittance(:,:,jlev), source_up(:,:,jlev), source_dn(:,:,jlev))
       end do
     else
       ! No-scattering case: use simpler functions for
       ! transmission and emission
-      call calc_no_scattering_transmittance_lw(ng, istartcol, iendcol, mask_2d(jlev,:), od_total(:,jlev,:), &
-           &  planck_hl(:,jlev,:), planck_hl(:,jlev+1,:), &
-           &  transmittance(:,jlev,:), source_up(:,jlev,:), source_dn(:,jlev,:))
+      call calc_no_scattering_transmittance_lw(ng, istartcol, iendcol, mask_2d(:,jlev), od_total(:,:,jlev), &
+           &  planck_hl(:,:,jlev), planck_hl(:,:,jlev+1), &
+           &  transmittance(:,:,jlev), source_up(:,:,jlev), source_dn(:,:,jlev))
     end if
     ! Loop through columns
     do jlev = 1,nlev
@@ -320,10 +320,10 @@ contains
         if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
           if (cloud%fraction(jcol,jlev) < config%cloud_fraction_threshold) then
             ! Clear-sky layer: copy over clear-sky values
-            reflectance(:,jlev,jcol) = ref_clear(:,jlev,jcol)
-            transmittance(:,jlev,jcol) = trans_clear(:,jlev,jcol)
-            source_up(:,jlev,jcol) = source_up_clear(:,jlev,jcol)
-            source_dn(:,jlev,jcol) = source_dn_clear(:,jlev,jcol)
+            reflectance(jcol,:,jlev) = ref_clear(jcol,:,jlev)
+            transmittance(jcol,:,jlev) = trans_clear(jcol,:,jlev)
+            source_up(jcol,:,jlev) = source_up_clear(jcol,:,jlev)
+            source_dn(jcol,:,jlev) = source_dn_clear(jcol,:,jlev)
           end if
         end if
       end do
@@ -335,6 +335,7 @@ contains
         mask_1d(jcol) = .TRUE.
       end if
     end do
+
     if (config%do_lw_aerosol_scattering) then
       ! Use adding method to compute fluxes for an overcast sky,
       ! allowing for scattering in all layers
@@ -364,8 +365,8 @@ contains
     do jcol = istartcol,iendcol
       if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
         ! Store overcast broadband fluxes
-        flux%lw_up(jcol,:) = sum(flux_up(:,:,jcol),1)
-        flux%lw_dn(jcol,:) = sum(flux_dn(:,:,jcol),1)
+        flux%lw_up(jcol,:) = sum(flux_up(jcol,:,:),1)
+        flux%lw_dn(jcol,:) = sum(flux_dn(jcol,:,:),1)
 
         ! Cloudy flux profiles currently assume completely overcast
         ! skies; perform weighted average with clear-sky profile
@@ -374,7 +375,7 @@ contains
         flux%lw_dn(jcol,:) =  total_cloud_cover(jcol) *flux%lw_dn(jcol,:) &
              &  + (1.0_jprb - total_cloud_cover(jcol))*flux%lw_dn_clear(jcol,:)
         ! Store surface spectral downwelling fluxes
-        flux%lw_dn_surf_g(:,jcol) = total_cloud_cover(jcol)*flux_dn(:,nlev+1,jcol) &
+        flux%lw_dn_surf_g(:,jcol) = total_cloud_cover(jcol)*flux_dn(jcol,:,nlev+1) &
              &  + (1.0_jprb - total_cloud_cover(jcol))*flux%lw_dn_surf_clear_g(:,jcol)
 
         ! Compute the longwave derivatives needed by Hogan and Bozzo
@@ -382,7 +383,7 @@ contains
       end if
     end do
     if (config%do_lw_derivatives) then
-      call calc_lw_derivatives_ica(ng, nlev, istartcol, iendcol, mask_1d, transmittance(:,:,:), flux_up(:,nlev+1,:), &
+      call calc_lw_derivatives_ica(ng, nlev, istartcol, iendcol, mask_1d, transmittance, flux_up(:,:,nlev+1), &
            &                       flux%lw_derivatives)
       ! Loop through columns
       mask_1d = .FALSE.
@@ -394,7 +395,7 @@ contains
        end if
       end do
       ! Modify the existing derivative with the contribution from the clear sky
-      call modify_lw_derivatives_ica(ng, nlev, istartcol, iendcol, mask_1d, trans_clear(:,:,:), flux_up_clear(:,nlev+1,:), &
+      call modify_lw_derivatives_ica(ng, nlev, istartcol, iendcol, mask_1d, trans_clear(:,:,:), flux_up_clear(:,:,nlev+1), &
            &                         1.0_jprb-total_cloud_cover, flux%lw_derivatives)
     end if
 
@@ -415,7 +416,7 @@ contains
           mask_1d(jcol) = .TRUE.
         end if
       end do
-      call calc_lw_derivatives_ica(ng, nlev, istartcol, iendcol, mask_1d, trans_clear(:,:,:), flux_up_clear(:,nlev+1,:), &
+      call calc_lw_derivatives_ica(ng, nlev, istartcol, iendcol, mask_1d, trans_clear(:,:,:), flux_up_clear(:,:,nlev+1), &
            &                       flux%lw_derivatives)
  
     end if ! Cloud is present in profile

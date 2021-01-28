@@ -237,6 +237,9 @@ contains
     real(jprb), dimension(config%n_g_lw,nlev,istartcol:iendcol) :: od_lw
     real(jprb), dimension(config%n_g_lw_if_scattering,nlev,istartcol:iendcol) :: &
          &  ssa_lw, g_lw
+    real(jprb), dimension(istartcol:iendcol,config%n_g_lw,nlev) :: od_lw_r
+    real(jprb), dimension(istartcol:iendcol,config%n_g_lw_if_scattering,nlev) :: &
+         &  ssa_lw_r, g_lw_r
 
     ! Layer in-cloud optical depth, single scattering albedo and
     ! asymmetry factor of hydrometeors in each longwave band, where
@@ -246,6 +249,9 @@ contains
     real(jprb), dimension(config%n_bands_lw,nlev,istartcol:iendcol) :: od_lw_cloud
     real(jprb), dimension(config%n_bands_lw_if_scattering,nlev,istartcol:iendcol) :: &
          &  ssa_lw_cloud, g_lw_cloud
+    real(jprb), dimension(istartcol:iendcol,config%n_bands_lw,nlev) :: od_lw_cloud_r
+    real(jprb), dimension(istartcol:iendcol,config%n_bands_lw_if_scattering,nlev) :: &
+         &  ssa_lw_cloud_r, g_lw_cloud_r
 
     ! Layer optical depth, single scattering albedo and asymmetry factor of
     ! gases and aerosols at each shortwave g-point
@@ -259,12 +265,15 @@ contains
     ! The Planck function (emitted flux from a black body) at half
     ! levels
     real(jprb), dimension(config%n_g_lw,nlev+1,istartcol:iendcol) :: planck_hl
+    real(jprb), dimension(istartcol:iendcol,config%n_g_lw,nlev+1) :: planck_hl_r
 
     ! The longwave emission from and albedo of the surface in each
     ! longwave g-point; note that these are weighted averages of the
     ! values from individual tiles
     real(jprb), dimension(config%n_g_lw, istartcol:iendcol) :: lw_emission
     real(jprb), dimension(config%n_g_lw, istartcol:iendcol) :: lw_albedo
+    real(jprb), dimension(istartcol:iendcol, config%n_g_lw) :: lw_emission_r
+    real(jprb), dimension(istartcol:iendcol, config%n_g_lw) :: lw_albedo_r
 
     ! Direct and diffuse shortwave surface albedo in each shortwave
     ! g-point; note that these are weighted averages of the values
@@ -279,6 +288,8 @@ contains
 
     character(len=100) :: rad_prop_file_name
     character(*), parameter :: rad_prop_base_file_name = "radiative_properties"
+
+    integer :: jcol, jg, jlev
 
     real(jprb) :: hook_handle
 
@@ -386,25 +397,111 @@ contains
         end if
 
         if (config%i_solver_lw == ISolverMcICA) then
-          ! compare input arrays
-          !call pgi_compare(od_sw, "double", size(od_sw), "od_sw", "radiation_interface.f90", "before-solver_mcica_lw", 1)
-          !call pgi_compare(ssa_sw, "double", size(ssa_sw), "ssa_sw", "radiation_interface.f90", "before-solver_mcica_lw", 1)
-          !call pgi_compare(g_sw, "double", size(g_sw), "g_sw", "radiation_interface.f90", "before-solver_mcica_lw", 1)
-          !call pgi_compare(od_sw_cloud, "double", size(od_sw_cloud), "od_sw_cloud", "radiation_interface.f90", "before-solver_mcica_lw", 1)
-          !call pgi_compare(ssa_sw_cloud, "double", size(ssa_sw_cloud), "ssa_sw_cloud", "radiation_interface.f90", "before-solver_mcica_lw", 1)
-          !call pgi_compare(g_sw_cloud, "double", size(g_sw_cloud), "g_sw_cloud", "radiation_interface.f90", "before-solver_mcica_lw", 1)
-          !call pgi_compare(sw_albedo_direct, "double", size(sw_albedo_direct), "sw_albedo_direct", "radiation_interface.f90", "before-solver_mcica_lw", 1)
-          !call pgi_compare(sw_albedo_diffuse, "double", size(sw_albedo_diffuse), "sw_albedo_diffuse", "radiation_interface.f90", "before-solver_mcica_lw", 1)
-          !call pgi_compare(incoming_sw, "double", size(incoming_sw), "incoming_sw", "radiation_interface.f90", "before-solver_mcica_lw", 1)
-          !call flux%compare("radiation_interface.f90", "before-solver_mcica_lw", 1)
+          ! rearrange memory
+          do jlev = 1,nlev
+            do jg = 1, config%n_g_lw
+              do jcol = istartcol,iendcol
+                od_lw_r(jcol, jg, jlev) = od_lw(jg, jlev, jcol) 
+              end do
+            end do
+          end do
+
+          do jlev = 1,nlev
+            do jg = 1, config%n_g_lw_if_scattering
+              do jcol = istartcol,iendcol
+                ssa_lw_r(jcol, jg, jlev) = ssa_lw(jg, jlev, jcol) 
+                g_lw_r(jcol, jg, jlev) = g_lw(jg, jlev, jcol)
+              end do
+            end do
+          end do
+
+          do jlev = 1,nlev+1
+            do jg = 1, config%n_g_lw
+              do jcol = istartcol,iendcol
+                planck_hl_r(jcol, jg, jlev) = planck_hl(jg, jlev, jcol) 
+              end do
+            end do
+          end do
+
+          do jg = 1, config%n_g_lw
+            do jcol = istartcol,iendcol
+              lw_emission_r(jcol, jg) = lw_emission(jg, jcol) 
+              lw_albedo_r(jcol, jg) = lw_albedo(jg, jcol) 
+            end do
+          end do
+
+          do jlev = 1,nlev
+            do jg = 1, config%n_bands_lw
+              do jcol = istartcol,iendcol
+                od_lw_cloud_r(jcol, jg, jlev) = od_lw_cloud(jg, jlev, jcol) 
+              end do
+            end do
+          end do
+
+          do jlev = 1,nlev
+            do jg = 1, config%n_bands_lw_if_scattering
+              do jcol = istartcol,iendcol
+                ssa_lw_cloud_r(jcol, jg, jlev) = ssa_lw_cloud(jg, jlev, jcol) 
+                g_lw_cloud_r(jcol, jg, jlev) = g_lw_cloud(jg, jlev, jcol)
+              end do
+            end do
+          end do
 
           ! Compute fluxes using the McICA longwave solver
           call solver_mcica_lw(nlev,istartcol,iendcol, &
                &  config, single_level, cloud, & 
-               &  od_lw, ssa_lw, g_lw, od_lw_cloud, ssa_lw_cloud, &
-               &  g_lw_cloud, planck_hl, lw_emission, lw_albedo, flux)
+               &  od_lw_r, ssa_lw_r, g_lw_r, od_lw_cloud_r, ssa_lw_cloud_r, &
+               &  g_lw_cloud_r, planck_hl_r, lw_emission_r, lw_albedo_r, flux)
 
-          !call flux%compare("radiation_interface.f90", "after-solver_mcica_lw", 2)
+          ! rearrange memory
+          do jlev = 1,nlev
+            do jg = 1, config%n_g_lw
+              do jcol = istartcol,iendcol
+                od_lw(jg, jlev, jcol) = od_lw_r(jcol, jg, jlev)
+              end do
+            end do
+          end do
+    
+          do jlev = 1,nlev
+            do jg = 1, config%n_g_lw_if_scattering
+              do jcol = istartcol,iendcol
+                ssa_lw(jg, jlev, jcol) = ssa_lw_r(jcol, jg, jlev)
+                g_lw(jg, jlev, jcol) = g_lw_r(jcol, jg, jlev)
+              end do
+            end do
+          end do
+    
+          do jlev = 1,nlev+1
+            do jg = 1, config%n_g_lw
+              do jcol = istartcol,iendcol
+                planck_hl(jg, jlev, jcol) = planck_hl_r(jcol, jg, jlev)
+              end do
+            end do
+          end do
+    
+          do jg = 1, config%n_g_lw
+            do jcol = istartcol,iendcol
+              lw_emission(jg, jcol) = lw_emission_r(jcol, jg)
+              lw_albedo(jg, jcol) = lw_albedo_r(jcol, jg)
+            end do
+          end do
+    
+          do jlev = 1,nlev
+           do jg = 1, config%n_bands_lw
+             do jcol = istartcol,iendcol
+               od_lw_cloud(jg, jlev, jcol) = od_lw_cloud_r(jcol, jg, jlev)
+             end do
+           end do
+          end do
+    
+          do jlev = 1,nlev
+            do jg = 1, config%n_bands_lw_if_scattering
+              do jcol = istartcol,iendcol
+                ssa_lw_cloud(jg, jlev, jcol) = ssa_lw_cloud_r(jcol, jg, jlev)
+                g_lw_cloud(jg, jlev, jcol) = g_lw_cloud_r(jcol, jg, jlev)
+              end do
+            end do
+          end do
 
         else if (config%i_solver_lw == ISolverSPARTACUS) then
           ! Compute fluxes using the SPARTACUS longwave solver
