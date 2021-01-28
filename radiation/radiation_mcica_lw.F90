@@ -67,25 +67,25 @@ contains
 
     ! Gas and aerosol optical depth, single-scattering albedo and
     ! asymmetry factor at each longwave g-point
-    real(jprb), intent(in), dimension(config%n_g_lw, nlev, istartcol:iendcol) :: &
+    real(jprb), intent(inout), dimension(config%n_g_lw, nlev, istartcol:iendcol) :: &
          &  od
-    real(jprb), intent(in), dimension(config%n_g_lw_if_scattering, nlev, istartcol:iendcol) :: &
+    real(jprb), intent(inout), dimension(config%n_g_lw_if_scattering, nlev, istartcol:iendcol) :: &
          &  ssa, g
 
     ! Cloud and precipitation optical depth, single-scattering albedo and
     ! asymmetry factor in each longwave band
-    real(jprb), intent(in), dimension(config%n_bands_lw,nlev,istartcol:iendcol)   :: &
+    real(jprb), intent(inout), dimension(config%n_bands_lw,nlev,istartcol:iendcol)   :: &
          &  od_cloud
-    real(jprb), intent(in), dimension(config%n_bands_lw_if_scattering, &
+    real(jprb), intent(inout), dimension(config%n_bands_lw_if_scattering, &
          &  nlev,istartcol:iendcol) :: ssa_cloud, g_cloud
 
     ! Planck function at each half-level and the surface
-    real(jprb), intent(in), dimension(config%n_g_lw,nlev+1,istartcol:iendcol) :: &
+    real(jprb), intent(inout), dimension(config%n_g_lw,nlev+1,istartcol:iendcol) :: &
          &  planck_hl
 
     ! Emission (Planck*emissivity) and albedo (1-emissivity) at the
     ! surface at each longwave g-point
-    real(jprb), intent(in), dimension(config%n_g_lw, istartcol:iendcol) :: emission, albedo
+    real(jprb), intent(inout), dimension(config%n_g_lw, istartcol:iendcol) :: emission, albedo
 
     ! Output
     type(flux_type), intent(inout):: flux
@@ -139,6 +139,55 @@ contains
 
     real(jprb) :: hook_handle
 
+    do jcol = istartcol,iendcol
+      do jlev=1,nlev
+        do jg = 1,config%n_g_lw
+          od(jg,jlev,jcol) = od(jg,jlev,jcol) + 1e-10
+        enddo
+      enddo
+    enddo
+
+    do jcol = istartcol,iendcol
+      do jlev=1,nlev
+        do jg = 1,config%n_g_lw_if_scattering
+          ssa(jg,jlev,jcol) = ssa(jg,jlev,jcol) + 1e-10
+          g(jg,jlev,jcol) = g(jg,jlev,jcol) + 1e-10
+        enddo
+      enddo
+    enddo
+
+    do jcol = istartcol,iendcol
+      do jlev=1,nlev
+        do jg = 1,config%n_bands_lw
+          od_cloud(jg,jlev,jcol) = od_cloud(jg,jlev,jcol)+1e-10
+        enddo
+      enddo
+    enddo
+
+    do jcol = istartcol,iendcol
+      do jlev=1,nlev
+        do jg = 1,config%n_bands_lw_if_scattering
+          ssa_cloud(jg,jlev,jcol) = ssa_cloud(jg,jlev,jcol)+1e-10
+          g_cloud(jg,jlev,jcol) = g_cloud(jg,jlev,jcol)+1e-10
+        enddo
+      enddo
+    enddo
+
+    do jcol = istartcol,iendcol
+      do jlev=1,nlev+1
+        do jg = 1,config%n_g_lw
+          planck_hl(jg,jlev,jcol) = planck_hl(jg,jlev,jcol)+1e-10
+        enddo
+      enddo
+    enddo
+
+    do jcol = istartcol,iendcol
+      do jg = 1,config%n_g_lw
+        emission(jg,jcol) = emission(jg,jcol)+1e-10
+        albedo(jg,jcol) = albedo(jg,jcol)+1e-10
+      enddo
+    enddo
+
     if (lhook) call dr_hook('radiation_mcica_lw:solver_mcica_lw',0,hook_handle)
 
     if (.not. config%do_clear) then
@@ -147,6 +196,8 @@ contains
     end if
 
     ng = config%n_g_lw
+
+    write(*,*) "DOMAIN SIZES :", ng, nlev, istartcol,iendcol
 
     ! Loop through columns
     do jcol = istartcol,iendcol
