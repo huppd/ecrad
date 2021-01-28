@@ -22,8 +22,6 @@ def cli(ref_file, cur_file):
     )
 
     cur = cur.sort_values(by=["time"], ascending=False)
-    cur.rename(index=lambda s: s.replace("_lr", ""), inplace=True)
-
     ref = ref.sort_values(by=["time"], ascending=False)
 
     cur = cur.rename(index=lambda s: s.replace("_lr", ""))
