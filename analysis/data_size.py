@@ -29,12 +29,18 @@ class Real(NamedTuple):
 
 
 class Logical:
+    def __init__(self):
+        pass
+
     @property
     def size(self) -> int:
         return 4
 
 
 class Integer:
+    def __init__(self):
+        pass
+
     @property
     def size(self) -> int:
         return 4
@@ -56,7 +62,7 @@ def size_str(size: int) -> str:
         return f'{round(float(size) / GB, 2)} gb'
 
 
-def print_breakdown(val,  offset: int=0):
+def print_breakdown(val,  offset: int = 0):
     print('\t' * offset + f'{val.name if hasattr(val, "name") else type(val).__name__} : {size_str(val.size)}')
     if isinstance(val, UserType):
         for member in val.members:
@@ -105,15 +111,16 @@ class UserType:
             sz = sz + member.size
         return sz
 
-    def print_breakdown(self, offset=0):
+    def print_breakdown(self):
         print_breakdown(self)
 
     def __init__(self):
-        seld._members = []
+        self._members = tuple()
 
 
 class Single_level_type(UserType):
     def __init__(self, fp_precision: FPPrecision, ncol: int, nalbedobands: int, nemissbands: int, n_bands_sw: int):
+        super().__init__()
         Cols = Dim('cols', ncol)
         Albedos = Dim('albedos', nalbedobands)
         Emissbands = Dim('emissbands', nemissbands)
@@ -132,6 +139,7 @@ class Single_level_type(UserType):
 
 class Thermodynamics_type(UserType):
     def __init__(self, fp_precision: FPPrecision, ncol: int, nlev: int):
+        super().__init__()
         Cols = Dim('cols', ncol)
         Levels = Dim('levels', nlev)
         Levels1 = Dim('levels1', nlev + 1)
@@ -143,6 +151,7 @@ class Thermodynamics_type(UserType):
 
 class Gas_type(UserType):
     def __init__(self, fp_precision: FPPrecision, ncol: int, nlev: int, NMaxGases: int):
+        super().__init__()
         Cols = Dim('cols', ncol)
         Levels = Dim('levels', nlev)
         Gases = Dim('gases', NMaxGases)
@@ -162,6 +171,7 @@ class Gas_type(UserType):
 class Aerosol_type(UserType):
     def __init__(self, fp_precision: FPPrecision, ncol: int, nlev: int, n_aerosol_types: int, is_direct: bool,
                  n_bands_sw: int, n_bands_lw: int):
+        super().__init__()
         Cols = Dim('cols', ncol)
         Levels = Dim('levels', nlev)
         SWBands = (Dim('sw_bands', n_bands_sw if is_direct else 0), Levels, Cols)
@@ -183,6 +193,7 @@ class Aerosol_type(UserType):
 
 class Cloud_type(UserType):
     def __init__(self, fp_precision: FPPrecision, ncol: int, nlev: int):
+        super().__init__()
         Cols = Dim('cols', ncol)
         Levels = Dim('levels', nlev)
         dim = (Cols, Levels)
@@ -205,6 +216,7 @@ class Flux_type(UserType):
                  do_sw: bool, do_sw_direct: bool, n_spec_sw: int, do_surface_sw_spectral_flux: bool, n_bands_sw: int,
                  n_g_sw: int,
                  do_canopy_fluxes_sw: bool, n_canopy_bands_sw: int):
+        super().__init__()
         Cols = Dim('cols', ncol)
         Levels = Dim('levels', nlev + 1)
         dimColLev = (Cols, Levels)
@@ -284,6 +296,7 @@ class RadiationIO(UserType):
                  do_canopy_fluxes_sw: bool, n_canopy_bands_sw: int,
                  NMaxGases: int, n_aerosol_types: int, aerosol_is_direct: bool,
                  nalbedobands: int, nemissbands: int):
+        super().__init__()
         self._members = (Scalar('ncol', Integer()),
                          Scalar('nlev', Integer()),
                          Scalar('istartcol', Integer()),
@@ -305,6 +318,83 @@ class RadiationIO(UserType):
                                                   do_canopy_fluxes_sw, n_canopy_bands_sw)))
 
 
+class Radiation_run_swVarsPerCol(UserType):
+    def __init__(self, fp_precision: FPPrecision, nlev: int, n_bands_sw: int, n_g_sw: int):
+        super().__init__()
+        Levels = Dim('levels', nlev)
+        dimG_sw = Dim('g_sw', n_g_sw)
+        dimBands_sw = Dim('bands_sw', n_bands_sw)
+        real = Real(fp_precision)
+        self._members = (Array('od_sw', real, (dimG_sw, Levels)),
+                         Array('ssa_sw', real, (dimG_sw, Levels)),
+                         Array('g_sw', real, (dimG_sw, Levels)),
+                         Array('od_sw_cloud', real, (dimBands_sw, Levels)),
+                         Array('ssa_sw_cloud', real, (dimBands_sw, Levels)),
+                         Array('g_sw_cloud', real, (dimBands_sw, Levels)),
+                         Array('sw_albedo_direct', real, (dimG_sw, )),
+                         Array('sw_albedo_diffuse', real, (dimG_sw, )),
+                         Array('incoming_sw', real, (dimG_sw, )))
+
+
+class Solver_mcica_swVarsPerCol(UserType):
+    def __init__(self, fp_precision: FPPrecision, nlev: int, n_g_sw: int):
+        super().__init__()
+        Levels = Dim('levels', nlev)
+        Levels1 = Dim('levels', nlev + 1)
+        dimG_sw = Dim('g_sw', n_g_sw)
+        real = Real(fp_precision)
+        integer = Integer()
+        self._members = (Scalar('cos_sza', real),
+                         Array('ref_clear', real, (dimG_sw, Levels)),
+                         Array('trans_clear', real, (dimG_sw, Levels)),
+                         Array('reflectance', real, (dimG_sw, Levels)),
+                         Array('transmittance', real, (dimG_sw, Levels)),
+                         Array('ref_dir_clear', real, (dimG_sw, Levels)),
+                         Array('trans_dir_diff_clear', real, (dimG_sw, Levels)),
+                         Array('ref_dir', real, (dimG_sw, Levels)),
+                         Array('trans_dir_diff', real, (dimG_sw, Levels)),
+                         Array('trans_dir_dir_clear', real, (dimG_sw, Levels)),
+                         Array('trans_dir_dir', real, (dimG_sw, Levels)),
+                         Array('flux_up', real, (dimG_sw, Levels1)),
+                         Array('flux_dn_diffuse', real, (dimG_sw, Levels1)),
+                         Array('flux_dn_direct', real, (dimG_sw, Levels1)),
+                         Array('od_total', real, (dimG_sw,)),
+                         Array('ssa_total', real, (dimG_sw,)),
+                         Array('g_total', real, (dimG_sw,)),
+                         Scalar('scat_od', real),
+                         Array('gamma1', real, (dimG_sw,)),
+                         Array('gamma2', real, (dimG_sw,)),
+                         Array('gamma3', real, (dimG_sw,)),
+                         Array('od_scaling', real, (dimG_sw, Levels)),
+                         Array('od_cloud_new', real, (dimG_sw,)),
+                         Scalar('total_cloud_cover', real),
+                         Scalar('ng', integer),
+                         Scalar('jlev', integer),
+                         Scalar('jcol', integer),
+                         Scalar('jg', integer))
+
+
+class Adding_ica_swVarsPerCol(UserType):
+    def __init__(self, fp_precision: FPPrecision, nlev: int):
+        super().__init__()
+        Levels = Dim('levels', nlev)
+        Levels1 = Dim('levels', nlev + 1)
+        real = Real(fp_precision)
+        self._members = (Array('albedo', real, (Levels1,)),
+                         Array('source', real, (Levels1,)),
+                         Array('inv_denominator', real, (Levels,)),
+                         Scalar('jlev', real),
+                         Scalar('jcol', real))
+
+
+class Radiation_run_swWorkingSetPerCol(UserType):
+    def __init__(self, fp_precision: FPPrecision, nlev: int, n_bands_sw: int, n_g_sw: int):
+        super().__init__()
+        self._members = (Scalar('vars', Radiation_run_swVarsPerCol(fp_precision, nlev, n_bands_sw, n_g_sw)),
+                         Scalar('solver_mcica_sw_vars', Solver_mcica_swVarsPerCol(fp_precision, nlev, n_g_sw)),
+                         Scalar('adding_ica_sw_vars', Adding_ica_swVarsPerCol(fp_precision, nlev)))
+
+
 DEFAULT_CFG = {'fp_precision': FPPrecision.DOUBLE, 'ncol': 20000, 'nlev': 137, 'do_save_spectral_flux': False,
                'do_clear': True,
                'do_lw': True, 'n_spec_lw': 0, 'do_lw_derivatives': False, 'n_g_lw': 140, 'n_bands_lw': 16,
@@ -315,8 +405,15 @@ DEFAULT_CFG = {'fp_precision': FPPrecision.DOUBLE, 'ncol': 20000, 'nlev': 137, '
                'NMaxGases': 12, 'n_aerosol_types': 11, 'aerosol_is_direct': False,
                'nalbedobands': 2, 'nemissbands': 1}
 
+
 if __name__ == '__main__':
-    print_breakdown(RadiationIO(**DEFAULT_CFG))
+    CFG = DEFAULT_CFG
+
+    def arg(name: str, cfg=CFG):
+        return cfg[name]
+    print_breakdown(RadiationIO(**CFG))
+    print('\n')
+    print_breakdown(Radiation_run_swWorkingSetPerCol(arg('fp_precision'), arg('nlev'), arg('n_bands_sw'), arg('n_g_sw')))
     # print_breakdown(Scalar('bla', Integer()))
     # print_breakdown(Array('arr', Real(FPPrecision.DOUBLE), (Dim('Cols', 10), Dim('Rows', 10), Dim('Lvls', 20))))
     # print(RadiationIO(**DEFAULT_CFG).size)
