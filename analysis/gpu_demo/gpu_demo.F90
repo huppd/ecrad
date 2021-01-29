@@ -1,20 +1,11 @@
 ! Created by  on 28.01.21.
 ! Author: Mikhail Zhigun
 
-!#define DEBUG_ON_CPU
+#define DEBUG_ON_CPU
 
-program gpu_demo
-#ifdef _OPENACC
+module m_gpu_demo
   use openacc
   use cudafor
-implicit none
-  call run()
-#else
-  print *, "Error: compiled without OpenACC"
-  stop
-#endif
-contains
-  subroutine run()
     integer, parameter :: KB = 1024
     integer, parameter :: MB = 1024 * KB
     integer, parameter :: GB = 1024 * MB
@@ -29,6 +20,8 @@ contains
     integer, parameter :: INPUT_DATA_SIZE_PER_COL = INPUT_BYTE_SIZE / (NUM_COLS * NUM_LEVELS * SIZEOF_DOUBLE)
     integer, parameter :: WORKING_SET_SW_DATA_SIZE_PER_COL = WORKING_SET_BYTE_SIZE_SW / (NUM_G_SW * NUM_LEVELS * SIZEOF_DOUBLE)
     integer, parameter :: WORKING_SET_LW_DATA_SIZE_PER_COL = WORKING_SET_BYTE_SIZE_LW / (NUM_G_LW * NUM_LEVELS * SIZEOF_DOUBLE)
+contains
+  subroutine run()
     !-----------------------------------------------------------------------------------------
 	integer :: threads_per_block_sw, threads_per_block_lw
     integer :: num_thread_blocks_sw, num_thread_blocks_lw
@@ -132,54 +125,153 @@ contains
         i = i + 1
 	  END DO
 	END DO
-    call omp_set_num_threads(num_mp)
-    call omp_set_dynamic(0)
-    !$omp parallel do default(none) num_threads(num_mp) &
-    !$omp& shared(input, working_set_sw, start_col_sw, end_col_sw, thread_block_idx_by_mp_sw, num_thread_blocks_per_mp_sw, num_mp) &
-    !$omp& private(mp_i, blk_i, start_col, end_col, col_i, lvl_i, g_i, r_i, col_wset_i, t_blk_i )
-	DO mp_i = 1, num_mp
-      ! It is likely, that acc_set_device_num has to be repaeated in each thread, and possibly different cuda stream created
-      DO blk_i = 1, num_thread_blocks_per_mp_sw
-        t_blk_i =  thread_block_idx_by_mp_sw(blk_i, mp_i)
-        start_col = start_col_sw(t_blk_i)
-        end_col = end_col_sw(t_blk_i)
-        !write(*,"(' t_blk_i:   ',i0)") t_blk_i
-        !write(*,"('   start_col: ',i0)") start_col
-        !write(*,"('   end_col:   ',i0)") end_col
-        !Input IO
-        DO col_i = start_col, end_col
-          DO lvl_i = 1, NUM_LEVELS
-            ! This should be in parallel
-            input(:, lvl_i, col_i) = 1.
-            input(:, lvl_i, col_i) = input(:, lvl_i, col_i) + 2.
-          END DO
-        END DO
-        !Computation
-        DO col_i = start_col, end_col
-          col_wset_i = col_i - start_col + 1
-          !print *, shape(working_set_sw)
-          !print *, ' ', col_wset_i
-          DO lvl_i = 1, NUM_LEVELS
-            DO r_i = 1, WORKING_SET_SW_DATA_SIZE_PER_COL
+    call solver_sw(blk_i, col_i, col_wset_i, end_col, end_col_sw, g_i, input, lvl_i, mp_i, &
+                   num_mp, num_thread_blocks_per_mp_sw, r_i, start_col, start_col_sw, t_blk_i, &
+                   thread_block_idx_by_mp_sw, working_set_sw)
+    call solver_lw(blk_i, col_i, col_wset_i, end_col, end_col_lw, g_i, input, lvl_i, mp_i, &
+                   num_mp, num_thread_blocks_per_mp_lw, r_i, start_col, start_col_lw, t_blk_i, &
+                   thread_block_idx_by_mp_lw, working_set_lw)
+  end subroutine run
+
+  subroutine solver_sw(blk_i, col_i, col_wset_i, end_col, end_col_sw, g_i, input, lvl_i, mp_i, &
+                       num_mp, num_thread_blocks_per_mp_sw, r_i, start_col, start_col_sw, t_blk_i, &
+                       thread_block_idx_by_mp_sw, working_set_sw)
+      implicit none
+      integer :: blk_i
+      integer :: col_i
+      integer :: col_wset_i
+      integer :: end_col
+      real, allocatable :: end_col_sw(:)
+      integer :: g_i
+      real, allocatable :: input(:, :, :)
+      integer :: lvl_i
+      integer :: mp_i
+      integer(8) :: num_mp
+      integer :: num_thread_blocks_per_mp_sw
+      integer :: r_i
+      integer :: start_col
+      real, allocatable :: start_col_sw(:)
+      integer :: t_blk_i
+      real, allocatable :: thread_block_idx_by_mp_sw(:, :)
+      real, allocatable :: working_set_sw(:, :, : , :)
+      call omp_set_num_threads(num_mp)
+      call omp_set_dynamic(0)
+      !$omp parallel do default(none) num_threads(num_mp) &
+      !$omp& shared(input, working_set_sw, start_col_sw, end_col_sw, thread_block_idx_by_mp_sw, num_thread_blocks_per_mp_sw, num_mp) &
+      !$omp& private(mp_i, blk_i, start_col, end_col, col_i, lvl_i, g_i, r_i, col_wset_i, t_blk_i )
+      DO mp_i = 1, num_mp
+        ! It is likely, that acc_set_device_num has to be repaeated in each thread, and possibly different cuda stream created
+        DO blk_i = 1, num_thread_blocks_per_mp_sw
+          t_blk_i =  thread_block_idx_by_mp_sw(blk_i, mp_i)
+          start_col = start_col_sw(t_blk_i)
+          end_col = end_col_sw(t_blk_i)
+          !write(*,"(' t_blk_i:   ',i0)") t_blk_i
+          !write(*,"('   start_col: ',i0)") start_col
+          !write(*,"('   end_col:   ',i0)") end_col
+          !Input IO
+          DO col_i = start_col, end_col
+            DO lvl_i = 1, NUM_LEVELS
               ! This should be in parallel
-              working_set_sw(:, r_i, lvl_i, t_blk_i) = 1.
-              do g_i = 1, NUM_G_SW
-                working_set_sw(g_i, r_i, lvl_i, t_blk_i) = exp(working_set_sw(g_i, r_i, lvl_i, t_blk_i))
-              end do
+              input(:, lvl_i, col_i) = 1.
+              input(:, lvl_i, col_i) = input(:, lvl_i, col_i) + 2.
             END DO
           END DO
-        END DO
-        !Input IO
-        DO col_i = start_col, end_col
-          DO lvl_i = 1, NUM_LEVELS
-            ! This should be in parallel
-            input(:, lvl_i, col_i) = input(1:INPUT_DATA_SIZE_PER_COL:-1, lvl_i, col_i)
+          !Computation
+          DO col_i = start_col, end_col
+            col_wset_i = col_i - start_col + 1
+            !print *, shape(working_set_sw)
+            !print *, ' ', col_wset_i
+            DO lvl_i = 1, NUM_LEVELS
+              DO r_i = 1, WORKING_SET_SW_DATA_SIZE_PER_COL
+                ! This should be in parallel
+                working_set_sw(:, r_i, lvl_i, t_blk_i) = 1.
+                do g_i = 1, NUM_G_SW
+                  working_set_sw(g_i, r_i, lvl_i, t_blk_i) = exp(working_set_sw(g_i, r_i, lvl_i, t_blk_i))
+                end do
+              END DO
+            END DO
           END DO
-        END DO
-	  END DO
-	END DO
-	!$omp end parallel do
-  end subroutine run
+          !Input IO
+          DO col_i = start_col, end_col
+            DO lvl_i = 1, NUM_LEVELS
+              ! This should be in parallel
+              input(:, lvl_i, col_i) = input(1:INPUT_DATA_SIZE_PER_COL:-1, lvl_i, col_i)
+            END DO
+          END DO
+      END DO
+      END DO
+	  !$omp end parallel do
+  end subroutine
+    
+  subroutine solver_lw(blk_i, col_i, col_wset_i, end_col, end_col_lw, g_i, input, lvl_i, mp_i, &
+                       num_mp, num_thread_blocks_per_mp_lw, r_i, start_col, start_col_lw, t_blk_i, &
+                       thread_block_idx_by_mp_lw, working_set_lw)
+      implicit none
+      integer :: blk_i
+      integer :: col_i
+      integer :: col_wset_i
+      integer :: end_col
+      real, allocatable :: end_col_lw(:)
+      integer :: g_i
+      real, allocatable :: input(:, :, :)
+      integer :: lvl_i
+      integer :: mp_i
+      integer(8) :: num_mp
+      integer :: num_thread_blocks_per_mp_lw
+      integer :: r_i
+      integer :: start_col
+      real, allocatable :: start_col_lw(:)
+      integer :: t_blk_i
+      real, allocatable :: thread_block_idx_by_mp_lw(:, :)
+      real, allocatable :: working_set_lw(:, :, : , :)
+      call omp_set_num_threads(num_mp)
+      call omp_set_dynamic(0)
+      !$omp parallel do default(none) num_threads(num_mp) &
+      !$omp& shared(input, working_set_lw, start_col_lw, end_col_lw, thread_block_idx_by_mp_lw, num_thread_blocks_per_mp_lw, num_mp) &
+      !$omp& private(mp_i, blk_i, start_col, end_col, col_i, lvl_i, g_i, r_i, col_wset_i, t_blk_i )
+      DO mp_i = 1, num_mp
+        ! It is likely, that acc_set_device_num has to be repaeated in each thread, and possibly different cuda stream created
+        DO blk_i = 1, num_thread_blocks_per_mp_lw
+          t_blk_i =  thread_block_idx_by_mp_lw(blk_i, mp_i)
+          start_col = start_col_lw(t_blk_i)
+          end_col = end_col_lw(t_blk_i)
+          !write(*,"(' t_blk_i:   ',i0)") t_blk_i
+          !write(*,"('   start_col: ',i0)") start_col
+          !write(*,"('   end_col:   ',i0)") end_col
+          !Input IO
+          DO col_i = start_col, end_col
+            DO lvl_i = 1, NUM_LEVELS
+              ! This should be in parallel
+              input(:, lvl_i, col_i) = 1.
+              input(:, lvl_i, col_i) = input(:, lvl_i, col_i) + 2.
+            END DO
+          END DO
+          !Computation
+          DO col_i = start_col, end_col
+            col_wset_i = col_i - start_col + 1
+            !print *, shape(working_set_lw)
+            !print *, ' ', col_wset_i
+            DO lvl_i = 1, NUM_LEVELS
+              DO r_i = 1, WORKING_SET_LW_DATA_SIZE_PER_COL
+                ! This should be in parallel
+                working_set_lw(:, r_i, lvl_i, t_blk_i) = 1.
+                do g_i = 1, NUM_G_LW
+                  working_set_lw(g_i, r_i, lvl_i, t_blk_i) = exp(working_set_lw(g_i, r_i, lvl_i, t_blk_i))
+                end do
+              END DO
+            END DO
+          END DO
+          !Input IO
+          DO col_i = start_col, end_col
+            DO lvl_i = 1, NUM_LEVELS
+              ! This should be in parallel
+              input(:, lvl_i, col_i) = input(1:INPUT_DATA_SIZE_PER_COL:-1, lvl_i, col_i)
+            END DO
+          END DO
+      END DO
+      END DO
+	  !$omp end parallel do
+  end subroutine
 
   pure function round_up_to_mod(val, mod) result(res)
     integer(4), intent(in) :: val, mod
@@ -187,4 +279,16 @@ contains
     res = ((val + mod - 1) / mod) * mod
   end function round_up_to_mod
 
+end module m_gpu_demo
+
+program gpu_demo
+    use m_gpu_demo
+#ifdef _OPENACC
+  use m_gpu_demo
+implicit none
+  call run()
+#else
+  print *, "Error: compiled without OpenACC"
+  stop
+#endif
 end program gpu_demo
