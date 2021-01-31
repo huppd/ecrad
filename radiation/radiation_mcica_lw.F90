@@ -20,6 +20,8 @@
 
 module radiation_mcica_lw
 
+    use omptimer, only           : omptimer_mark
+
   public
 
 contains
@@ -137,7 +139,16 @@ contains
     ! Loop indices for level, column and g point
     integer :: jlev, jcol, jg
 
-    real(jprb) :: hook_handle
+    real(jprb) :: hook_handle, omphook_solver_mcica_lw, omphook_calc_two_stream_gammas_lw, &
+&  omphook_adding_ica_lw, omphook_calc_no_scattering_transmittance_lw, &
+& omphook_calc_fluxes_no_scattering_lw, omphook_cloud_generator, &
+& omphook_set_scat_od, omphook_calc_two_stream_gammas_lw_b, &
+& omphook_calc_reflectance_transmittance_lw_b, &
+& omphook_calc_no_scattering_transmittance_lw_b, &
+& omphook_adding_ica_lw_b, omphook_fast_adding_ica_lw, &
+& omphook_calc_fluxes_no_scattering_lw_b, omphook_calc_lw_derivatives_ica, &
+& omphook_modify_lw_derivatives_ica           
+
 
     do jcol = istartcol,iendcol
       do jlev=1,nlev
@@ -189,6 +200,7 @@ contains
     enddo
 
     if (lhook) call dr_hook('radiation_mcica_lw:solver_mcica_lw',0,hook_handle)
+    call omptimer_mark('radiation_mcica_lw:solver_mcica_lw',0,omphook_solver_mcica_lw)
 
     if (.not. config%do_clear) then
       write(nulerr,'(a)') '*** Error: longwave McICA requires clear-sky calculation to be performed'
@@ -206,6 +218,10 @@ contains
       if (config%do_lw_aerosol_scattering) then
         ! Scattering case: first compute clear-sky reflectance,
         ! transmittance etc at each model level
+
+call omptimer_mark('calc_two_stream_gammas_lw',0, &
+&   omphook_calc_two_stream_gammas_lw)
+
         do jlev = 1,nlev
           ssa_total = ssa(:,jlev,jcol)
           g_total   = g(:,jlev,jcol)
@@ -217,13 +233,28 @@ contains
                &  ref_clear(:,jlev), trans_clear(:,jlev), &
                &  source_up_clear(:,jlev), source_dn_clear(:,jlev))
         end do
+call omptimer_mark('calc_two_stream_gammas_lw',1, &
+&   omphook_calc_two_stream_gammas_lw) 
+
+
+call omptimer_mark('adding_ica_lw',0, &
+&    omphook_adding_ica_lw)
         ! Then use adding method to compute fluxes
         call adding_ica_lw(ng, nlev, &
              &  ref_clear, trans_clear, source_up_clear, source_dn_clear, &
              &  emission(:,jcol), albedo(:,jcol), &
              &  flux_up_clear, flux_dn_clear)
         
+call omptimer_mark('adding_ica_lw',1, &
+&    omphook_adding_ica_lw)
+
       else
+
+
+call omptimer_mark('calc_no_scattering_transmittance_lw',0, &
+&   omphook_calc_no_scattering_transmittance_lw)
+
+
         ! Non-scattering case: use simpler functions for
         ! transmission and emission
         do jlev = 1,nlev
@@ -231,12 +262,23 @@ contains
                &  planck_hl(:,jlev,jcol), planck_hl(:,jlev+1, jcol), &
                &  trans_clear(:,jlev), source_up_clear(:,jlev), source_dn_clear(:,jlev))
         end do
+
+call omptimer_mark('calc_no_scattering_transmittance_lw',1, &
+&   omphook_calc_no_scattering_transmittance_lw)
+
+call omptimer_mark('calc_fluxes_no_scattering_lw',0, &
+&   omphook_calc_fluxes_no_scattering_lw)
+
         ! Simpler down-then-up method to compute fluxes
         call calc_fluxes_no_scattering_lw(ng, nlev, &
              &  trans_clear, source_up_clear, source_dn_clear, &
              &  emission(:,jcol), albedo(:,jcol), &
              &  flux_up_clear, flux_dn_clear)
         
+call omptimer_mark('calc_fluxes_no_scattering_lw',1, &
+&   omphook_calc_fluxes_no_scattering_lw)
+
+
         ! Ensure that clear-sky reflectance is zero since it may be
         ! used in cloudy-sky case
         ref_clear = 0.0_jprb
@@ -248,6 +290,11 @@ contains
       ! Store surface spectral downwelling fluxes
       flux%lw_dn_surf_clear_g(:,jcol) = flux_dn_clear(:,nlev+1)
 
+
+call omptimer_mark('cloud_generator',0, &
+&   omphook_cloud_generator)
+
+
       ! Do cloudy-sky calculation; add a prime number to the seed in
       ! the longwave
       call cloud_generator(ng, nlev, config%i_overlap_scheme, &
@@ -258,6 +305,10 @@ contains
            &  config%pdf_sampler, od_scaling, total_cloud_cover, &
            &  is_beta_overlap=config%use_beta_overlap)
       
+call omptimer_mark('cloud_generator',1, &
+&   omphook_cloud_generator)
+
+
       ! Store total cloud cover
       flux%cloud_cover_lw(jcol) = total_cloud_cover
       
@@ -281,9 +332,14 @@ contains
             ssa_total = 0.0_jprb
             g_total   = 0.0_jprb
 
+
             if (config%do_lw_cloud_scattering) then
               ! Scattering case: calculate reflectance and
               ! transmittance at each model level
+
+call omptimer_mark('set_scat_od',0, &
+&   omphook_set_scat_od)
+
 
               if (config%do_lw_aerosol_scattering) then
                 ! In single precision we need to protect against the
@@ -316,21 +372,51 @@ contains
                   end if
                 end do
               end if
-            
+ 
+call omptimer_mark('set_scat_od',1, &
+&   omphook_set_scat_od)
+
+           
+call omptimer_mark('calc_two_stream_gammas_lw',0, &
+&   omphook_calc_two_stream_gammas_lw_b)
+
+
               ! Compute cloudy-sky reflectance, transmittance etc at
               ! each model level
               call calc_two_stream_gammas_lw(ng, ssa_total, g_total, &
                    &  gamma1, gamma2)
+
+call omptimer_mark('calc_two_stream_gammas_lw',1, &
+&   omphook_calc_two_stream_gammas_lw_b)
+
+call omptimer_mark('calc_reflectance_transmittance_lw',0, &
+&   omphook_calc_reflectance_transmittance_lw_b)
+
+
               call calc_reflectance_transmittance_lw(ng, &
                    &  od_total, gamma1, gamma2, &
                    &  planck_hl(:,jlev,jcol), planck_hl(:,jlev+1,jcol), &
                    &  reflectance(:,jlev), transmittance(:,jlev), source_up(:,jlev), source_dn(:,jlev))
+call omptimer_mark('calc_reflectance_transmittance_lw',1, &
+&   omphook_calc_reflectance_transmittance_lw_b)
+
+
+
             else
+call omptimer_mark('calc_no_scattering_transmittance_lw_b',0, &
+&   omphook_calc_no_scattering_transmittance_lw_b)
+
+
               ! No-scattering case: use simpler functions for
               ! transmission and emission
               call calc_no_scattering_transmittance_lw(ng, od_total, &
                    &  planck_hl(:,jlev,jcol), planck_hl(:,jlev+1, jcol), &
                    &  transmittance(:,jlev), source_up(:,jlev), source_dn(:,jlev))
+
+call omptimer_mark('calc_no_scattering_transmittance_lw_b',1, &
+&   omphook_calc_no_scattering_transmittance_lw_b)
+
+
             end if
 
           else
@@ -343,26 +429,51 @@ contains
         end do
         
         if (config%do_lw_aerosol_scattering) then
+call omptimer_mark('adding_ica_lw_b',0, &
+&   omphook_adding_ica_lw_b)
+
           ! Use adding method to compute fluxes for an overcast sky,
           ! allowing for scattering in all layers
           call adding_ica_lw(ng, nlev, reflectance, transmittance, source_up, source_dn, &
                &  emission(:,jcol), albedo(:,jcol), &
                &  flux_up, flux_dn)
+
+call omptimer_mark('adding_ica_lw_b',1, &
+&   omphook_adding_ica_lw_b)
+
+
         else if (config%do_lw_cloud_scattering) then
           ! Use adding method to compute fluxes but optimize for the
           ! presence of clear-sky layers
 !          call adding_ica_lw(ng, nlev, reflectance, transmittance, source_up, source_dn, &
 !               &  emission(:,jcol), albedo(:,jcol), &
 !               &  flux_up, flux_dn)
+call omptimer_mark('fast_adding_ica_lw',0, &
+&   omphook_fast_adding_ica_lw)
+
+
           call fast_adding_ica_lw(ng, nlev, reflectance, transmittance, source_up, source_dn, &
                &  emission(:,jcol), albedo(:,jcol), &
                &  is_clear_sky_layer, i_cloud_top, flux_dn_clear, &
                &  flux_up, flux_dn)
+call omptimer_mark('fast_adding_ica_lw',1, &
+&   omphook_fast_adding_ica_lw)
+
+
         else
+call omptimer_mark('calc_fluxes_no_scattering_lw_b',0, &
+&   omphook_calc_fluxes_no_scattering_lw_b)
+
+
           ! Simpler down-then-up method to compute fluxes
           call calc_fluxes_no_scattering_lw(ng, nlev, &
                &  transmittance, source_up, source_dn, emission(:,jcol), albedo(:,jcol), &
                &  flux_up, flux_dn)
+
+call omptimer_mark('calc_fluxes_no_scattering_lw_b',1, &
+&   omphook_calc_fluxes_no_scattering_lw_b)
+
+
         end if
         
         ! Store overcast broadband fluxes
@@ -382,12 +493,28 @@ contains
         ! Compute the longwave derivatives needed by Hogan and Bozzo
         ! (2015) approximate radiation update scheme
         if (config%do_lw_derivatives) then
+call omptimer_mark('calc_lw_derivatives_ica',0, &
+&   omphook_calc_lw_derivatives_ica)
+
+
           call calc_lw_derivatives_ica(ng, nlev, jcol, transmittance, flux_up(:,nlev+1), &
                &                       flux%lw_derivatives)
+call omptimer_mark('calc_lw_derivatives_ica',1, &
+&   omphook_calc_lw_derivatives_ica)
+
+
           if (total_cloud_cover < 1.0_jprb - config%cloud_fraction_threshold) then
             ! Modify the existing derivative with the contribution from the clear sky
+call omptimer_mark('modify_lw_derivatives_ica',0, &
+&   omphook_modify_lw_derivatives_ica)
+
+
             call modify_lw_derivatives_ica(ng, nlev, jcol, trans_clear, flux_up_clear(:,nlev+1), &
                  &                         1.0_jprb-total_cloud_cover, flux%lw_derivatives)
+call omptimer_mark('modify_lw_derivatives_ica',1, &
+&   omphook_modify_lw_derivatives_ica)
+
+
           end if
         end if
 
@@ -405,6 +532,7 @@ contains
       end if ! Cloud is present in profile
     end do
 
+    call omptimer_mark('radiation_mcica_lw:solver_mcica_lw',1,omphook_solver_mcica_lw)
     if (lhook) call dr_hook('radiation_mcica_lw:solver_mcica_lw',1,hook_handle)
     
   end subroutine solver_mcica_lw
