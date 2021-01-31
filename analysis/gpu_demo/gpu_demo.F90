@@ -1,7 +1,7 @@
 ! Created by  on 28.01.21.
 ! Author: Mikhail Zhigun
 
-#define DEBUG_ON_CPU
+!#define DEBUG_ON_CPU
 
 module m_gpu_demo
   use openacc
@@ -25,6 +25,7 @@ contains
     !-----------------------------------------------------------------------------------------
 	integer :: threads_per_block_sw, threads_per_block_lw
     integer :: num_thread_blocks_sw, num_thread_blocks_lw
+    integer :: num_warps_per_block_sw, num_warps_per_block_lw
     integer :: num_thread_blocks_per_mp_sw, num_thread_blocks_per_mp_lw
     integer :: num_cols_per_sw_thread_block, num_cols_per_lw_thread_block
     real, dimension(:, :, :), allocatable :: input ! INPUT_DATA_SIZE_PER_COL x levels x cols
@@ -33,12 +34,12 @@ contains
 #ifndef DEBUG_ON_CPU
     !$acc declare device_resident(input, working_set_sw, working_set_lw)
 #endif
-    real, dimension(:), allocatable :: start_col_sw ! num_thread_blocks_sw
-    real, dimension(:), allocatable :: end_col_sw ! num_thread_blocks_sw
-    real, dimension(:), allocatable :: start_col_lw ! num_thread_blocks_lw
-    real, dimension(:), allocatable :: end_col_lw ! num_thread_blocks_lw
-    real, dimension(:, :), allocatable :: thread_block_idx_by_mp_sw ! num_thread_blocks_per_mp_sw x num_mp
-    real, dimension(:, :), allocatable :: thread_block_idx_by_mp_lw ! num_thread_blocks_per_mp_lw x num_mp
+    integer, dimension(:), allocatable :: start_col_sw ! num_thread_blocks_sw
+    integer, dimension(:), allocatable :: end_col_sw ! num_thread_blocks_sw
+    integer, dimension(:), allocatable :: start_col_lw ! num_thread_blocks_lw
+    integer, dimension(:), allocatable :: end_col_lw ! num_thread_blocks_lw
+    integer, dimension(:, :), allocatable :: thread_block_idx_by_mp_sw ! num_thread_blocks_per_mp_sw x num_mp
+    integer, dimension(:, :), allocatable :: thread_block_idx_by_mp_lw ! num_thread_blocks_per_mp_lw x num_mp
     integer :: i, mp_i, blk_i, t_blk_i, start_col, end_col, col_i, lvl_i, data_i, g_i, r_i, col_wset_i
     !-----------------------------------------------------------------------------------------
     integer, parameter :: DEV_NUM = 0 ! Always pick up first found device
@@ -68,10 +69,12 @@ contains
     write(*,"(' Number of multiprocessors:    ',i0)") num_mp
     write(*,"(' Max threads per MP:           ',i0)") max_threads_per_mp
     write(*,"(' Max threads per block:        ',i0)") max_threads_per_block
-    write(*,"(' Warp (OpenACC vector) size:   ',i0)") warp_size
+    write(*,"(' Warp (OpenACC vector/num_workers) size:   ',i0)") warp_size
     write(*,"('---------------------------------------')")
     threads_per_block_sw = round_up_to_mod(NUM_G_SW,  int(warp_size))
     threads_per_block_lw = round_up_to_mod(NUM_G_LW, int(warp_size))
+    num_warps_per_block_sw = threads_per_block_sw / warp_size
+    num_warps_per_block_lw = threads_per_block_lw / warp_size
     num_thread_blocks_per_mp_sw = (max_threads_per_mp / threads_per_block_sw)
     num_thread_blocks_per_mp_lw = (max_threads_per_mp / threads_per_block_lw)
     num_thread_blocks_sw = num_mp * num_thread_blocks_per_mp_sw
@@ -79,10 +82,12 @@ contains
     num_cols_per_sw_thread_block = NUM_COLS / num_thread_blocks_sw ! Imprecise, some cols in the end maybe left out
     num_cols_per_lw_thread_block = NUM_COLS / num_thread_blocks_lw ! last thread block should get it share of cols + rounded of calls in the end
     write(*,"(' threads_per_block_sw:    ',i0)") threads_per_block_sw
+    write(*,"(' num_warps_per_block_sw:    ',i0)") num_warps_per_block_sw
     write(*,"(' num_thread_blocks_sw:    ',i0)") num_thread_blocks_sw
     write(*,"(' num_thread_blocks_per_mp_sw:    ',i0)") num_thread_blocks_per_mp_sw
     write(*,"(' num_cols_per_sw_thread_block:    ',i0)") num_cols_per_sw_thread_block
     write(*,"(' threads_per_block_lw:    ',i0)") threads_per_block_lw
+    write(*,"(' num_warps_per_block_lw:    ',i0)") num_warps_per_block_lw
     write(*,"(' num_thread_blocks_lw:    ',i0)") num_thread_blocks_lw
     write(*,"(' num_thread_blocks_per_mp_lw:    ',i0)") num_thread_blocks_per_mp_lw
     write(*,"(' num_cols_per_lw_thread_block:    ',i0)") num_cols_per_lw_thread_block
@@ -126,50 +131,63 @@ contains
 	  END DO
 	END DO
     call solver_sw(blk_i, col_i, col_wset_i, end_col, end_col_sw, g_i, input, lvl_i, mp_i, &
-                   num_mp, num_thread_blocks_per_mp_sw, r_i, start_col, start_col_sw, t_blk_i, &
-                   thread_block_idx_by_mp_sw, working_set_sw)
+                   num_mp, threads_per_block_sw, num_warps_per_block_sw, num_thread_blocks_sw, &
+                   num_thread_blocks_per_mp_sw, r_i, start_col, start_col_sw, t_blk_i, thread_block_idx_by_mp_sw, &
+                   working_set_sw)
     call solver_lw(blk_i, col_i, col_wset_i, end_col, end_col_lw, g_i, input, lvl_i, mp_i, &
-                   num_mp, num_thread_blocks_per_mp_lw, r_i, start_col, start_col_lw, t_blk_i, &
-                   thread_block_idx_by_mp_lw, working_set_lw)
+                   num_mp, threads_per_block_lw, num_warps_per_block_lw, num_thread_blocks_lw, &
+                   num_thread_blocks_per_mp_lw, r_i, start_col, start_col_lw, t_blk_i, thread_block_idx_by_mp_lw, &
+                   working_set_lw)
   end subroutine run
 
   subroutine solver_sw(blk_i, col_i, col_wset_i, end_col, end_col_sw, g_i, input, lvl_i, mp_i, &
-                       num_mp, num_thread_blocks_per_mp_sw, r_i, start_col, start_col_sw, t_blk_i, &
-                       thread_block_idx_by_mp_sw, working_set_sw)
+                       num_mp, threads_per_block_sw, num_warps_per_block_sw, num_thread_blocks_sw, &
+                       num_thread_blocks_per_mp_sw, r_i, start_col, start_col_sw, t_blk_i, thread_block_idx_by_mp_sw, &
+                       working_set_sw)
       implicit none
       integer :: blk_i
       integer :: col_i
       integer :: col_wset_i
       integer :: end_col
-      real, allocatable :: end_col_sw(:)
+      integer, allocatable :: end_col_sw(:)
       integer :: g_i
       real, allocatable :: input(:, :, :)
       integer :: lvl_i
       integer :: mp_i
       integer(8) :: num_mp
+      integer :: threads_per_block_sw
+      integer :: num_warps_per_block_sw
+      integer :: num_thread_blocks_sw
       integer :: num_thread_blocks_per_mp_sw
       integer :: r_i
       integer :: start_col
-      real, allocatable :: start_col_sw(:)
-      integer :: t_blk_i
-      real, allocatable :: thread_block_idx_by_mp_sw(:, :)
+      integer, allocatable :: start_col_sw(:)
+      integer :: t_blk_i, t_blk_i_counter
+      integer, allocatable :: thread_block_idx_by_mp_sw(:, :)
       real, allocatable :: working_set_sw(:, :, : , :)
-      call omp_set_num_threads(num_mp)
-      call omp_set_dynamic(0)
-      !$omp parallel do default(none) num_threads(num_mp) &
-      !$omp& shared(input, working_set_sw, start_col_sw, end_col_sw, thread_block_idx_by_mp_sw, num_thread_blocks_per_mp_sw, num_mp) &
-      !$omp& private(mp_i, blk_i, start_col, end_col, col_i, lvl_i, g_i, r_i, col_wset_i, t_blk_i )
-      DO mp_i = 1, num_mp
-        ! It is likely, that acc_set_device_num has to be repaeated in each thread, and possibly different cuda stream created
-        DO blk_i = 1, num_thread_blocks_per_mp_sw
-          t_blk_i =  thread_block_idx_by_mp_sw(blk_i, mp_i)
+      integer :: gang_i, visited(1:num_thread_blocks_sw)
+
+      t_blk_i_counter = 1
+#ifndef DEBUG_ON_CPU
+      !$acc data present(input, working_set_sw) copyin(thread_block_idx_by_mp_sw, start_col_sw, end_col_sw, visited, t_blk_i)
+      !$acc parallel num_gangs(num_thread_blocks_sw) num_workers(num_warps_per_block_sw) copyin(t_blk_i_counter) &
+      !$acc& vector_length(threads_per_block_sw)
+      !$acc loop independent gang
+#endif
+      DO gang_i = 1, num_thread_blocks_sw
+          ! For unknown reason simple "t_blk_i = gang_i" does not work, because gang_i is always equal to 1
+          t_blk_i = allocate_gang_unique_idx(t_blk_i_counter) ! this can be replaced by non-portable __pgi_gangidx() + 1
           start_col = start_col_sw(t_blk_i)
           end_col = end_col_sw(t_blk_i)
+          !visited(t_blk_i) = t_blk_i
+          !print *, t_blk_i, start_col, end_col
           !write(*,"(' t_blk_i:   ',i0)") t_blk_i
           !write(*,"('   start_col: ',i0)") start_col
           !write(*,"('   end_col:   ',i0)") end_col
           !Input IO
+          !$acc loop independent seq
           DO col_i = start_col, end_col
+            !$acc loop seq
             DO lvl_i = 1, NUM_LEVELS
               ! This should be in parallel
               input(:, lvl_i, col_i) = 1.
@@ -177,14 +195,18 @@ contains
             END DO
           END DO
           !Computation
+          !$acc loop independent seq
           DO col_i = start_col, end_col
             col_wset_i = col_i - start_col + 1
             !print *, shape(working_set_sw)
             !print *, ' ', col_wset_i
+            !$acc loop seq
             DO lvl_i = 1, NUM_LEVELS
+              !$acc loop seq
               DO r_i = 1, WORKING_SET_SW_DATA_SIZE_PER_COL
                 ! This should be in parallel
                 working_set_sw(:, r_i, lvl_i, t_blk_i) = 1.
+                !$acc loop vector
                 do g_i = 1, NUM_G_SW
                   working_set_sw(g_i, r_i, lvl_i, t_blk_i) = exp(working_set_sw(g_i, r_i, lvl_i, t_blk_i))
                 end do
@@ -192,54 +214,71 @@ contains
             END DO
           END DO
           !Input IO
+          !$acc loop independent seq
           DO col_i = start_col, end_col
+            !$acc loop seq
             DO lvl_i = 1, NUM_LEVELS
               ! This should be in parallel
-              input(:, lvl_i, col_i) = input(1:INPUT_DATA_SIZE_PER_COL:-1, lvl_i, col_i)
+              input(:, lvl_i, col_i) = 2.
             END DO
           END DO
       END DO
-      END DO
-	  !$omp end parallel do
+#ifndef DEBUG_ON_CPU
+      !$acc end parallel
+      !$acc update host(visited)
+      !$acc end data
+ #endif
+      !print *, visited
   end subroutine
-    
+
   subroutine solver_lw(blk_i, col_i, col_wset_i, end_col, end_col_lw, g_i, input, lvl_i, mp_i, &
-                       num_mp, num_thread_blocks_per_mp_lw, r_i, start_col, start_col_lw, t_blk_i, &
-                       thread_block_idx_by_mp_lw, working_set_lw)
+                       num_mp, threads_per_block_lw, num_warps_per_block_lw, num_thread_blocks_lw, &
+                       num_thread_blocks_per_mp_lw, r_i, start_col, start_col_lw, t_blk_i, thread_block_idx_by_mp_lw, &
+                       working_set_lw)
       implicit none
       integer :: blk_i
       integer :: col_i
       integer :: col_wset_i
       integer :: end_col
-      real, allocatable :: end_col_lw(:)
+      integer, allocatable :: end_col_lw(:)
       integer :: g_i
       real, allocatable :: input(:, :, :)
       integer :: lvl_i
       integer :: mp_i
       integer(8) :: num_mp
+      integer :: threads_per_block_lw
+      integer :: num_warps_per_block_lw
+      integer :: num_thread_blocks_lw
       integer :: num_thread_blocks_per_mp_lw
       integer :: r_i
       integer :: start_col
-      real, allocatable :: start_col_lw(:)
-      integer :: t_blk_i
-      real, allocatable :: thread_block_idx_by_mp_lw(:, :)
+      integer, allocatable :: start_col_lw(:)
+      integer :: t_blk_i, t_blk_i_counter
+      integer, allocatable :: thread_block_idx_by_mp_lw(:, :)
       real, allocatable :: working_set_lw(:, :, : , :)
-      call omp_set_num_threads(num_mp)
-      call omp_set_dynamic(0)
-      !$omp parallel do default(none) num_threads(num_mp) &
-      !$omp& shared(input, working_set_lw, start_col_lw, end_col_lw, thread_block_idx_by_mp_lw, num_thread_blocks_per_mp_lw, num_mp) &
-      !$omp& private(mp_i, blk_i, start_col, end_col, col_i, lvl_i, g_i, r_i, col_wset_i, t_blk_i )
-      DO mp_i = 1, num_mp
-        ! It is likely, that acc_set_device_num has to be repaeated in each thread, and possibly different cuda stream created
-        DO blk_i = 1, num_thread_blocks_per_mp_lw
-          t_blk_i =  thread_block_idx_by_mp_lw(blk_i, mp_i)
+      integer :: gang_i, visited(1:num_thread_blocks_lw)
+
+      t_blk_i_counter = 1
+#ifndef DEBUG_ON_CPU
+      !$acc data present(input, working_set_lw) copyin(thread_block_idx_by_mp_lw, start_col_lw, end_col_lw, visited, t_blk_i)
+      !$acc parallel num_gangs(num_thread_blocks_lw) num_workers(num_warps_per_block_lw) copyin(t_blk_i_counter) &
+      !$acc& vector_length(threads_per_block_lw)
+      !$acc loop independent gang
+#endif
+      DO gang_i = 1, num_thread_blocks_lw
+          ! For unknown reason simple "t_blk_i = gang_i" does not work, because gang_i is always equal to 1
+          t_blk_i = allocate_gang_unique_idx(t_blk_i_counter) ! this can be replaced by non-portable __pgi_gangidx() + 1
           start_col = start_col_lw(t_blk_i)
           end_col = end_col_lw(t_blk_i)
+          !visited(t_blk_i) = t_blk_i
+          !print *, t_blk_i, start_col, end_col
           !write(*,"(' t_blk_i:   ',i0)") t_blk_i
           !write(*,"('   start_col: ',i0)") start_col
           !write(*,"('   end_col:   ',i0)") end_col
           !Input IO
+          !$acc loop independent seq
           DO col_i = start_col, end_col
+            !$acc loop seq
             DO lvl_i = 1, NUM_LEVELS
               ! This should be in parallel
               input(:, lvl_i, col_i) = 1.
@@ -247,30 +286,40 @@ contains
             END DO
           END DO
           !Computation
+          !$acc loop independent seq
           DO col_i = start_col, end_col
             col_wset_i = col_i - start_col + 1
             !print *, shape(working_set_lw)
             !print *, ' ', col_wset_i
+            !$acc loop seq
             DO lvl_i = 1, NUM_LEVELS
-              DO r_i = 1, WORKING_SET_LW_DATA_SIZE_PER_COL
+              !$acc loop seq
+              DO r_i = 1, WORKING_SET_lw_DATA_SIZE_PER_COL
                 ! This should be in parallel
                 working_set_lw(:, r_i, lvl_i, t_blk_i) = 1.
-                do g_i = 1, NUM_G_LW
+                !$acc loop vector
+                do g_i = 1, NUM_G_lw
                   working_set_lw(g_i, r_i, lvl_i, t_blk_i) = exp(working_set_lw(g_i, r_i, lvl_i, t_blk_i))
                 end do
               END DO
             END DO
           END DO
           !Input IO
+          !$acc loop independent seq
           DO col_i = start_col, end_col
+            !$acc loop seq
             DO lvl_i = 1, NUM_LEVELS
               ! This should be in parallel
-              input(:, lvl_i, col_i) = input(1:INPUT_DATA_SIZE_PER_COL:-1, lvl_i, col_i)
+              input(:, lvl_i, col_i) = 2.
             END DO
           END DO
       END DO
-      END DO
-	  !$omp end parallel do
+#ifndef DEBUG_ON_CPU
+      !$acc end parallel
+      !$acc update host(visited)
+      !$acc end data
+ #endif
+      !print *, visited
   end subroutine
 
   pure function round_up_to_mod(val, mod) result(res)
@@ -278,6 +327,19 @@ contains
     integer(4) :: res
     res = ((val + mod - 1) / mod) * mod
   end function round_up_to_mod
+
+  integer function allocate_gang_unique_idx(counter_var) result(idx)
+      !$acc routine vector
+      integer, intent(inout) :: counter_var
+      integer :: idx, v_i
+      !$acc loop vector private(v_i)
+      do v_i = 1, 1
+          !$acc atomic capture
+          idx = counter_var
+          counter_var = counter_var + 1
+          !$acc end atomic
+      end do
+  end function allocate_gang_unique_idx
 
 end module m_gpu_demo
 
