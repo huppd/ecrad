@@ -21,6 +21,7 @@
 module radiation_two_stream
 
   use parkind1, only : jprb, jprd
+  use omptimer, only: omptimer_mark 
 
   implicit none
   public
@@ -473,10 +474,14 @@ real(jprd) :: coeff, coeff_up_top, coeff_up_bot, coeff_dn_top, coeff_dn_bot
 integer :: jcol
 
 #ifdef DO_DR_HOOK_TWO_STREAM
-real(jprb) :: hook_handle
+real(jprb) :: hook_handle, omphook_calc_reflectance_transmittance_lw
 
 if (lhook) call dr_hook('radiation_two_stream:calc_reflectance_transmittance_lw_lr',0,hook_handle)
 #endif
+
+call omptimer_mark('inner_calc_reflectance_transmittance_lw',0, &
+&   omphook_calc_reflectance_transmittance_lw)
+
 
 do jcol = istartcol,iendcol
   if ((total_cloud_cover(jcol) >= cloud_fraction_threshold) .and. &
@@ -516,6 +521,9 @@ do jcol = istartcol,iendcol
     end if
   endif
 end do
+
+call omptimer_mark('inner_calc_reflectance_transmittance_lw',1, &
+&   omphook_calc_reflectance_transmittance_lw)
 
 #ifdef DO_DR_HOOK_TWO_STREAM
 if (lhook) call dr_hook('radiation_two_stream:calc_reflectance_transmittance_lw_lr',1,hook_handle)

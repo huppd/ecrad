@@ -33,7 +33,7 @@ program ecrad_driver
   use parkind1,                 only : jprb, jprd ! Working/double precision
 
   use yomhook,                  only : dr_hook, lhook, initialize_timers, finalize_timers
-
+  use omptimer,                 only: omptimer_initialize, omptimer_finalize
   use radiation_io,             only : nulout
   use radiation_interface,      only : setup_radiation, radiation, set_gas_units
   use radiation_config,         only : config_type
@@ -113,6 +113,7 @@ program ecrad_driver
  
 
   if (lhook) call initialize_timers()
+  call omptimer_initialize()
   if (lhook) call dr_hook('ecrad_driver:ecrad_driver',0,hook_handle)
   ! --------------------------------------------------------
   ! Section 2: Configure
@@ -363,5 +364,6 @@ program ecrad_driver
 
   if (lhook) call dr_hook('ecrad_driver:ecrad_driver',1,hook_handle)
   if (lhook) call finalize_timers()
+  call omptimer_finalize()
 
 end program ecrad_driver

@@ -20,6 +20,8 @@
 
 module radiation_cloud_generator
 
+    use omptimer, only           : omptimer_mark
+
   public
 
 contains
@@ -578,6 +580,11 @@ end subroutine cloud_generator_lr
  real(jprb) :: rand_cloud(nlev)
  real(jprb) :: rand_inhom1(nlev), rand_inhom2(nlev)
 
+ real(jprb) :: omphook_handle
+
+ call omptimer_mark('generate_column_exp_ran_lr',0,omphook_handle)
+
+
  ! So far our vertically contiguous cloud contains only one layer
  n_layers_to_scale = 1
  iy = 0
@@ -647,6 +654,8 @@ end subroutine cloud_generator_lr
    end if
        
  end do
+
+ call omptimer_mark('generate_column_exp_ran_lr',1,omphook_handle)
 
 end subroutine generate_column_exp_ran_lr
 
@@ -833,6 +842,10 @@ end subroutine generate_column_exp_ran_lr
  ! depth scaling
  integer :: n_layers_to_scale
 
+ real(jprb) :: omphook_handle
+
+ call omptimer_mark('generate_column_exp_exp_lr',0,omphook_handle)
+
  iy = 0
 
  is_cloudy = .false.
@@ -894,6 +907,8 @@ end subroutine generate_column_exp_ran_lr
       &  rand_inhom1(1:n_layers_to_scale), od_scaling(itrigger:iend,ig), &
       &  is_cloudy(itrigger:iend))
      
+ call omptimer_mark('generate_column_exp_exp_lr',1,omphook_handle)
+
 end subroutine generate_column_exp_exp_lr
 
 end module radiation_cloud_generator
