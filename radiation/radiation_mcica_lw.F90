@@ -515,6 +515,19 @@ end subroutine generate_column_exp_exp_lr
  real(jprd) :: exponential  ! = exp(-k_exponent*od)
  real(jprd) :: exponential2 ! = exp(-2*k_exponent*od)
 
+! cos: temporaries for fast_adding_ica_lw_lr
+! ---------------------------------------------
+! Albedo of the entire earth/atmosphere system below each half
+ ! level
+ real(jprb), dimension(istartcol:iendcol,nlev+1) :: albedo_tmp
+
+ ! Upwelling radiation at each half-level due to emission below
+ ! that half-level (W m-2)
+ real(jprb), dimension(istartcol:iendcol,nlev+1) :: source
+
+ ! Equal to 1/(1-albedo*reflectance)
+ real(jprb), dimension(istartcol:iendcol,nlev)   :: inv_denominator
+! ---------------------------------------------
 
 
  ! Height indices
@@ -905,28 +918,28 @@ call omptimer_mark('calc_fluxes_no_scattering_lw',0, &
 
 ! cos: inline of calc_fluxes_no_scattering_lw_lr
 !        ! ! ! Simpler down-then-up method to compute fluxes
-        call calc_fluxes_no_scattering_lw_lr(istartcol, iendcol, nlev, &
-             &  trans_clear(:,:), source_up_clear, source_dn_clear, &
-             &  emission(:,jg), albedo(:,jg), &
-             &  flux_up_clear(:,:), flux_dn_clear(:,:))
-! ! At top-of-atmosphere there is no diffuse downwelling radiation
-! flux_dn_clear(:,1) = 0.0_jprb
-!
-! ! Work down through the atmosphere computing the downward fluxes
-! ! at each half-level
-! do jlev = 1,nlev
-!   flux_dn_clear(:,jlev+1) = trans_clear(:,jlev)*flux_dn_clear(:,jlev) + source_dn_clear(:,jlev)
-! end do
-!
-! ! Surface reflection and emission
-! flux_up_clear(:,nlev+1) = emission(:,jg) + albedo(:,jg) * flux_dn(:,nlev+1)
-!
-! ! Work back up through the atmosphere computing the upward fluxes
-! ! at each half-level
-! do jlev = nlev,1,-1
-!   flux_up_clear(:,jlev) = trans_clear(:,jlev)*flux_up_clear(:,jlev+1) + source_up_clear(:,jlev)
-! end do
-!
+!        call calc_fluxes_no_scattering_lw_lr(istartcol, iendcol, nlev, &
+!             &  trans_clear(:,:), source_up_clear, source_dn_clear, &
+!             &  emission(:,jg), albedo(:,jg), &
+!             &  flux_up_clear(:,:), flux_dn_clear(:,:))
+ ! At top-of-atmosphere there is no diffuse downwelling radiation
+  flux_dn_clear(:,1) = 0.0_jprb
+
+ ! Work down through the atmosphere computing the downward fluxes
+ ! at each half-level
+ do jlev = 1,nlev
+   flux_dn_clear(:,jlev+1) = trans_clear(:,jlev)*flux_dn_clear(:,jlev) + source_dn_clear(:,jlev)
+ end do
+
+ ! Surface reflection and emission
+ flux_up_clear(:,nlev+1) = emission(:,jg) + albedo(:,jg) * flux_dn_clear(:,nlev+1)
+
+ ! Work back up through the atmosphere computing the upward fluxes
+ ! at each half-level
+ do jlev = nlev,1,-1
+   flux_up_clear(:,jlev) = trans_clear(:,jlev)*flux_up_clear(:,jlev+1) + source_up_clear(:,jlev)
+ end do
+
         
 call omptimer_mark('calc_fluxes_no_scattering_lw',1, &
 &   omphook_calc_fluxes_no_scattering_lw)
@@ -1004,8 +1017,28 @@ call omptimer_mark('calc_two_stream_gammas_lw_b',0, &
 
           ! Compute cloudy-sky reflectance, transmittance etc at
           ! each model level
-          call calc_two_stream_gammas_lw_cond_lr(istartcol, iendcol, total_cloud_cover, cloud%fraction(:,jlev), &
-                  & config%cloud_fraction_threshold, ssa_total, g_total, gamma1, gamma2)
+! cos: inline of calc_two_stream_gammas_lw_cond_lr
+!          call calc_two_stream_gammas_lw_cond_lr(istartcol, iendcol, total_cloud_cover, cloud%fraction(:,jlev), &
+!                  & config%cloud_fraction_threshold, ssa_total, g_total, gamma1, gamma2)
+
+do jcol = istartcol,iendcol
+  if ((total_cloud_cover(jcol) >= config%cloud_fraction_threshold) .and. &
+  &               (cloud%fraction(jcol,jlev) >= config%cloud_fraction_threshold)) then
+  
+    ! Fu et al. (1997), Eq 2.9 and 2.10:
+    !      gamma1(jg) = LwDiffusivity * (1.0_jprb - 0.5_jprb*ssa(jg) &
+    !           &                    * (1.0_jprb + g(jg)))
+    !      gamma2(jg) = LwDiffusivity * 0.5_jprb * ssa(jg) &
+    !           &                    * (1.0_jprb - g(jg))
+    ! Reduce number of multiplications
+    factor = (LwDiffusivity * 0.5_jprb) * ssa_total(jcol)
+    gamma1(jcol) = LwDiffusivity - factor*(1.0_jprb + g_total(jcol))
+    gamma2(jcol) = factor * (1.0_jprb - g_total(jcol))
+  endif
+end do
+
+
+
 
 call omptimer_mark('calc_two_stream_gammas_lw_b',1, &
 &   omphook_calc_two_stream_gammas_lw_b)
@@ -1123,11 +1156,110 @@ call omptimer_mark('adding_ica_lw_b',1, &
 call omptimer_mark('fast_adding_ica_lw',0, &
 &   omphook_fast_adding_ica_lw)
 
+! cos: inline of fast_adding_ica_lw_lr
+!          call fast_adding_ica_lw_lr(istartcol,iendcol, nlev, total_cloud_cover, config%cloud_fraction_threshold, &
+!&               reflectance, transmittance(:,:), source_up, &
+!              & source_dn, emission(:,jg), albedo(:,jg), is_clear_sky_layer(:,:), i_cloud_top, &
+!              & flux_dn_clear(:,:), flux_up(:,:), flux_dn(:,:))
 
-          call fast_adding_ica_lw_lr(istartcol,iendcol, nlev, total_cloud_cover, config%cloud_fraction_threshold, &
-&               reflectance, transmittance(:,:), source_up, &
-              & source_dn, emission(:,jg), albedo(:,jg), is_clear_sky_layer(:,:), i_cloud_top, &
-              & flux_dn_clear(:,:), flux_up(:,:), flux_dn(:,:))
+ do jcol=istartcol,iendcol
+  if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
+   ! Copy over downwelling fluxes above cloud from clear sky
+     flux_dn(jcol,1:i_cloud_top(jcol)) = flux_dn_clear(jcol,1:i_cloud_top(jcol))
+
+     albedo_tmp(jcol,nlev+1) = albedo(jcol,jg)
+ 
+     ! At the surface, the source is thermal emission
+     source(jcol,nlev+1) = emission(jcol,jg)
+    
+  endif
+ enddo
+
+ ! Work back up through the atmosphere and compute the albedo of
+ ! the entire earth/atmosphere system below that half-level, and
+ ! also the "source", which is the upwelling flux due to emission
+ ! below that level
+! do jlev = nlev,i_cloud_top,-1
+  do jlev = nlev,1,-1
+   do jcol = istartcol,iendcol
+    if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
+
+     if(jlev >= i_cloud_top(jcol)) then
+     
+        if (is_clear_sky_layer(jcol,jlev)) then
+        ! ! Reflectance of this layer is zero, simplifying the expression
+
+          albedo_tmp(jcol,jlev) = transmittance(jcol,jlev)*transmittance(jcol,jlev)*albedo_tmp(jcol,jlev+1)
+          source(jcol,jlev) = source_up(jcol,jlev) &
+                &  + transmittance(jcol,jlev) * (source(jcol,jlev+1) &
+                &                    + albedo_tmp(jcol,jlev+1)*source_dn(jcol,jlev))
+        else
+          ! Lacis and Hansen (1974) Eq 33, Shonk & Hogan (2008) Eq 10:
+          inv_denominator(jcol,jlev) = 1.0_jprb &
+                &  / (1.0_jprb-albedo_tmp(jcol,jlev+1)*reflectance(jcol,jlev))
+          ! Shonk & Hogan (2008) Eq 9, Petty (2006) Eq 13.81:
+          albedo_tmp(jcol,jlev) = reflectance(jcol,jlev) + transmittance(jcol,jlev)*transmittance(jcol,jlev) &
+                &  * albedo_tmp(jcol,jlev+1) * inv_denominator(jcol,jlev)
+          ! Shonk & Hogan (2008) Eq 11:
+          source(jcol,jlev) = source_up(jcol,jlev) &
+                &  + transmittance(jcol,jlev) * (source(jcol,jlev+1) &
+                &                    + albedo_tmp(jcol,jlev+1)*source_dn(jcol,jlev)) &
+                &                   * inv_denominator(jcol,jlev)
+        endif
+      endif
+    endif
+  end do
+ end do
+ 
+ do jcol=istartcol,iendcol
+  if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
+   ! Compute the fluxes above the highest cloud
+   flux_up(jcol,i_cloud_top(jcol)) = source(jcol,i_cloud_top(jcol)) &
+      &                 + albedo_tmp(jcol,i_cloud_top(jcol))*flux_dn(jcol,i_cloud_top(jcol))
+  endif
+ enddo
+ !do jlev = i_cloud_top(jcol)-1,1,-1
+ ! cos: would it make sense to revert the jcol and jlev loops here
+ ! in this pattern to avoid the jcol conditional exit? performance wise need to test?
+ do jlev = nlev-1,1,-1
+   do jcol=istartcol,iendcol
+    if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
+     if(jlev < i_cloud_top(jcol)) then
+       flux_up(jcol,jlev) = transmittance(jcol,jlev)*flux_up(jcol,jlev+1) + source_up(jcol,jlev)
+     endif
+    endif
+   end do
+ enddo
+
+ ! Work back down through the atmosphere from cloud top computing
+ ! the fluxes at each half-level
+
+ !do jlev = i_cloud_top,nlev
+ do jlev = 1,nlev
+  do jcol=istartcol,iendcol
+    if ((total_cloud_cover(jcol) >= config%cloud_fraction_threshold) .and. jlev >= i_cloud_top(jcol)) then
+
+   if (is_clear_sky_layer(jcol,jlev)) then
+       flux_dn(jcol,jlev+1) = transmittance(jcol,jlev)*flux_dn(jcol,jlev) &
+            &               + source_dn(jcol,jlev)
+       flux_up(jcol,jlev+1) = albedo_tmp(jcol,jlev+1)*flux_dn(jcol,jlev+1) &
+            &               + source(jcol,jlev+1)
+   else
+       ! Shonk & Hogan (2008) Eq 14 (after simplification):
+       flux_dn(jcol,jlev+1) &
+            &  = (transmittance(jcol,jlev)*flux_dn(jcol,jlev) &
+            &     + reflectance(jcol,jlev)*source(jcol,jlev+1) &
+            &     + source_dn(jcol,jlev)) * inv_denominator(jcol,jlev)
+       ! Shonk & Hogan (2008) Eq 12:
+       flux_up(jcol,jlev+1) = albedo_tmp(jcol,jlev+1)*flux_dn(jcol,jlev+1) &
+            &               + source(jcol,jlev+1)
+   end if
+  endif
+  enddo
+ end do
+
+
+
 call omptimer_mark('fast_adding_ica_lw',1, &
 &   omphook_fast_adding_ica_lw)
 
