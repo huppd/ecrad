@@ -255,11 +255,11 @@ contains
       integer :: t_blk_i, t_blk_i_counter
       integer, allocatable :: thread_block_idx_by_mp_lw(:, :)
       real, allocatable :: working_set_lw(:, :, : , :)
-      integer :: gang_i, visited(1:num_thread_blocks_lw)
+      integer :: gang_i
 
       t_blk_i_counter = 1
 #ifndef DEBUG_ON_CPU
-      !$acc data present(input, working_set_lw) copyin(thread_block_idx_by_mp_lw, start_col_lw, end_col_lw, visited, t_blk_i)
+      !$acc data present(input, working_set_lw) copyin(thread_block_idx_by_mp_lw, start_col_lw, end_col_lw, t_blk_i)
       !$acc parallel num_gangs(num_thread_blocks_lw) num_workers(num_warps_per_block_lw) copyin(t_blk_i_counter) &
       !$acc& vector_length(threads_per_block_lw)
       !$acc loop independent gang
@@ -315,7 +315,6 @@ contains
       END DO
 #ifndef DEBUG_ON_CPU
       !$acc end parallel
-      !$acc update host(visited)
       !$acc end data
  #endif
       !print *, visited
