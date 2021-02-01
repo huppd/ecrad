@@ -14,4 +14,6 @@ set(FC_RELEASE_DEBUGFLAGS "-g")
 set(FC_DEBUG_DEBUGFLAGS "${FC_RELEASE_DEBUGFLAGS}")
 set(FC_OMPFLAG "-qopenmp -qopenmp-lib=compat")
 set(FC_MODFLAG "-module")
+set(CMAKE_EXE_LINKER_FLAGS_INIT "-lrt")
+
 
