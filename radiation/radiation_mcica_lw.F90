@@ -143,7 +143,7 @@ contains
 &  omphook_adding_ica_lw, omphook_calc_no_scattering_transmittance_lw, &
 & omphook_calc_fluxes_no_scattering_lw, omphook_cloud_generator, &
 & omphook_set_scat_od, omphook_calc_two_stream_gammas_lw_b, &
-& omphook_calc_reflectance_transmittance_lw_b, &
+& omphook_calc_reflectance_transmittance_lw, &
 & omphook_calc_no_scattering_transmittance_lw_b, &
 & omphook_adding_ica_lw_b, omphook_fast_adding_ica_lw, &
 & omphook_calc_fluxes_no_scattering_lw_b, omphook_calc_lw_derivatives_ica, &
@@ -161,8 +161,8 @@ contains
     do jcol = istartcol,iendcol
       do jlev=1,nlev
         do jg = 1,config%n_g_lw_if_scattering
-          ssa(jg,jlev,jcol) = ssa(jg,jlev,jcol) + 1e-10
-          g(jg,jlev,jcol) = g(jg,jlev,jcol) + 1e-10
+!          ssa(jg,jlev,jcol) = ssa(jg,jlev,jcol) + 1e-10
+!          g(jg,jlev,jcol) = g(jg,jlev,jcol) + 1e-10
         enddo
       enddo
     enddo
@@ -377,7 +377,7 @@ call omptimer_mark('set_scat_od',1, &
 &   omphook_set_scat_od)
 
            
-call omptimer_mark('calc_two_stream_gammas_lw',0, &
+call omptimer_mark('calc_two_stream_gammas_lw_b',0, &
 &   omphook_calc_two_stream_gammas_lw_b)
 
 
@@ -386,11 +386,11 @@ call omptimer_mark('calc_two_stream_gammas_lw',0, &
               call calc_two_stream_gammas_lw(ng, ssa_total, g_total, &
                    &  gamma1, gamma2)
 
-call omptimer_mark('calc_two_stream_gammas_lw',1, &
+call omptimer_mark('calc_two_stream_gammas_lw_b',1, &
 &   omphook_calc_two_stream_gammas_lw_b)
 
 call omptimer_mark('calc_reflectance_transmittance_lw',0, &
-&   omphook_calc_reflectance_transmittance_lw_b)
+&   omphook_calc_reflectance_transmittance_lw)
 
 
               call calc_reflectance_transmittance_lw(ng, &
@@ -398,7 +398,7 @@ call omptimer_mark('calc_reflectance_transmittance_lw',0, &
                    &  planck_hl(:,jlev,jcol), planck_hl(:,jlev+1,jcol), &
                    &  reflectance(:,jlev), transmittance(:,jlev), source_up(:,jlev), source_dn(:,jlev))
 call omptimer_mark('calc_reflectance_transmittance_lw',1, &
-&   omphook_calc_reflectance_transmittance_lw_b)
+&   omphook_calc_reflectance_transmittance_lw)
 
 
 
