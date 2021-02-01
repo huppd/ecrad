@@ -23,7 +23,7 @@ module m_gpu_demo
 contains
   subroutine run()
     !-----------------------------------------------------------------------------------------
-	integer :: threads_per_block_sw, threads_per_block_lw
+    integer :: threads_per_block_sw, threads_per_block_lw
     integer :: num_thread_blocks_sw, num_thread_blocks_lw
     integer :: num_warps_per_block_sw, num_warps_per_block_lw
     integer :: num_thread_blocks_per_mp_sw, num_thread_blocks_per_mp_lw
@@ -46,8 +46,9 @@ contains
     integer :: num_dev, istat
     character*100 :: dev_name
     integer(8) :: gpu_mem_size, gpu_mem_size_mb, num_mp, max_threads_per_mp, max_threads_per_block, warp_size
+    integer(kind=cuda_count_kind) :: used_gpu_mem, total_gpu_mem, free_gpu_mem
+    integer :: cuda_status 
     type (cudaDeviceProp) :: prop
-
 
     num_dev = acc_get_num_devices(ACC_DEVICE_NVIDIA)
     if (num_dev .lt. 1) then
@@ -94,10 +95,20 @@ contains
     write(*,"(' INPUT_DATA_SIZE_PER_COL:    ',i0)") INPUT_DATA_SIZE_PER_COL
     write(*,"(' WORKING_SET_SW_DATA_SIZE_PER_COL:    ',i0)") WORKING_SET_SW_DATA_SIZE_PER_COL
     write(*,"(' WORKING_SET_LW_DATA_SIZE_PER_COL:    ',i0)") WORKING_SET_LW_DATA_SIZE_PER_COL
+    !-----------------------------
+    cuda_status = cudaMemGetInfo(free_gpu_mem, total_gpu_mem)
+    used_gpu_mem = total_gpu_mem - free_gpu_mem
+    write(*,"(' Used GPU memory before allocation:    ',i0,'mb')") used_gpu_mem / MB
+    !-----------------------------
     !These allocations should happen directly on GPU due to "device resident" directive
     allocate(input(INPUT_DATA_SIZE_PER_COL, NUM_LEVELS, NUM_COLS))
     allocate(working_set_sw(NUM_G_SW, WORKING_SET_SW_DATA_SIZE_PER_COL, NUM_LEVELS, num_thread_blocks_sw))
     allocate(working_set_lw(NUM_G_LW, WORKING_SET_LW_DATA_SIZE_PER_COL, NUM_LEVELS, num_thread_blocks_lw))
+    !-----------------------------
+    cuda_status = cudaMemGetInfo(free_gpu_mem, total_gpu_mem)
+    used_gpu_mem = total_gpu_mem - free_gpu_mem
+    write(*,"(' Used GPU memory after allocation:    ',i0,'mb')") used_gpu_mem / MB
+    !-----------------------------
     !These allocations happen on CPU, so data should be copied after
     allocate(start_col_sw(num_thread_blocks_sw))
     allocate(end_col_sw(num_thread_blocks_sw))
