@@ -13,16 +13,19 @@
 
 module yomhook
 
+  use omp_lib
+
   public
 
   logical :: lhook = .true.
 
   ! allocate two large arrays
-  DOUBLE PRECISION, allocatable :: total_time(:)
-  DOUBLE PRECISION, allocatable :: tstart(:), tstop(:)
+  DOUBLE PRECISION, allocatable :: total_time(:,:)
+  DOUBLE PRECISION, allocatable :: tstart(:,:)
   integer, allocatable :: ncalls(:)
   CHARACTER(len=80), allocatable :: names(:)
   integer, parameter :: hash_size = 1000
+  integer :: omp_num_threads
 
 contains
 
@@ -48,31 +51,37 @@ contains
 
     use parkind1, only : jprb
 
-    character(len=*), intent(in)    :: proc_name
+    character(len=*), intent(in)   :: proc_name
     integer,          intent(in)    :: iswitch
     real(jprb),       intent(inout) :: proc_key
-    integer :: idx
-    double precision, external :: omp_get_wtime
+    integer :: idx, thread_id
+    double precision :: tstop 
 
-    idx = INT(proc_key)
+    thread_id = omp_get_thread_num()
     if (iswitch == 0) then
       call char_to_hash(proc_name, idx)
       proc_key = real(idx)
-      names(idx) = proc_name
-      ncalls(idx) = ncalls(idx) + 1
-      tstart(idx) = omp_get_wtime()
+      if(thread_id == 0 .and. ncalls(idx) == 0) then
+        names(idx) = proc_name
+        ncalls(idx) = ncalls(idx) + 1
+      endif
+      tstart(idx,thread_id) = omp_get_wtime()
     else if (iswitch == 1) then
-      tstop(idx) = omp_get_wtime()
-      total_time(idx) = total_time(idx) + (tstop(idx) - tstart(idx))
+      idx = INT(proc_key)
+      tstop = omp_get_wtime()
+      total_time(idx,thread_id) = total_time(idx,thread_id) + (tstop - tstart(idx,thread_id))
     endif
 
   end subroutine dr_hook
 
   subroutine initialize_timers()
 
-    allocate(total_time(hash_size))
-    allocate(tstart(hash_size))
-    allocate(tstop(hash_size))
+    CHARACTER(len=255) :: ntstr
+    CALL get_environment_variable("OMP_NUM_THREADS", ntstr)
+    READ(ntstr, '(I2)') omp_num_threads
+
+    allocate(total_time(hash_size, 0:omp_num_threads-1))
+    allocate(tstart(hash_size, 0:omp_num_threads-1))
     allocate(ncalls(hash_size))
     allocate(names(hash_size))
 
@@ -84,12 +93,16 @@ contains
   subroutine finalize_timers()
 
     integer :: idx
+    double precision :: ttime
 
     open(1, file="timing.txt", action="write")
 
     do idx = 1,1000
-      if(total_time(idx) > 0.0) then
-        write(1, '(A80,E10.3,I10)'), names(idx), total_time(idx), ncalls(idx)
+      ttime = 0
+      if(total_time(idx,0) > 0.0) then
+        ttime = sum(total_time(idx,:)) / omp_num_threads
+        rms = sqrt( sum( (total_time(idx,:) - ttime)**2) / omp_num_threads)
+        write(1, '(A80,E10.3,E10.3,I10)'), names(idx), ttime, rms, ncalls(idx)
       end if
     end do
 
