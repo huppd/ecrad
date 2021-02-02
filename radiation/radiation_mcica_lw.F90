@@ -529,6 +529,11 @@ end subroutine generate_column_exp_exp_lr
  real(jprb), dimension(istartcol:iendcol,nlev)   :: inv_denominator
 ! ---------------------------------------------
 
+ integer, dimension(iendcol-istartcol+1) :: cloud_cover_idx
+ integer :: cloud_cover_idx_length, idx
+
+ integer, dimension(iendcol-istartcol+1,nlev) :: cloud_cover_fraction
+ integer, dimension(nlev) :: cloud_cover_fraction_length
 
  ! Height indices
  integer :: jcloud
@@ -548,9 +553,6 @@ end subroutine generate_column_exp_exp_lr
 
  ! Is it time to fill the od_scaling variable?
  logical :: do_fill_od_scaling
-
-
-
 
     ng = config%n_g_lw
 
@@ -639,26 +641,47 @@ call omptimer_mark('cloud_generator',1, &
       ! Store total cloud cover
       flux%cloud_cover_lw(jcol) = total_cloud_cover(jcol)      
     enddo
+
+    cloud_cover_idx = 0
+
+    cloud_cover_idx_length = 0
     do jcol = istartcol,iendcol
       if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
-        ! Total-sky calculation
+        cloud_cover_idx_length = cloud_cover_idx_length + 1
+        cloud_cover_idx(cloud_cover_idx_length) = jcol
+      endif
+    enddo
 
+    cloud_cover_fraction = 0
+    do jlev = 1,nlev
+      cloud_cover_fraction_length(jlev) = 0
+      do jcol = istartcol,iendcol
+        if ( (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) .and. &
+&          (cloud%fraction(jcol,jlev) >= config%cloud_fraction_threshold)) then
+            cloud_cover_fraction_length(jlev) = cloud_cover_fraction_length(jlev)+1
+            cloud_cover_fraction(cloud_cover_fraction_length(jlev), jlev) = jcol
+        endif
+      enddo
+    enddo
+
+    do idx = 1, cloud_cover_idx_length
+      jcol = cloud_cover_idx(idx)
         ! Reset optical depth scaling to clear skies
         od_scaling(jcol,:,:) = 0.0_jprb
 
         is_clear_sky_layer(jcol,:) = .true.
         i_cloud_top(jcol) = nlev+1
-        do jlev = 1,nlev
-          ! Compute combined gas+aerosol+cloud optical properties
-          if (cloud%fraction(jcol,jlev) >= config%cloud_fraction_threshold) then
-            is_clear_sky_layer(jcol,jlev) = .false.
-            ! Get index to the first cloudy layer from the top
-            if (i_cloud_top(jcol) > jlev) then
-              i_cloud_top(jcol) = jlev
-            end if
-          endif
-        enddo
-      endif
+    enddo
+
+    do jlev = 1,nlev
+      do idx = 1, cloud_cover_fraction_length(jlev)
+        jcol = cloud_cover_fraction(idx,jlev)
+        is_clear_sky_layer(jcol,jlev) = .false.
+        ! Get index to the first cloudy layer from the top
+        if (i_cloud_top(jcol) > jlev) then
+          i_cloud_top(jcol) = jlev
+        endif
+      enddo
     enddo
       
     flux_up_clear_sum(:,:) = 0.0
@@ -675,8 +698,8 @@ call omptimer_mark('cloud_generator',1, &
 call omptimer_mark('cloud_generator',0, &
 &   omphook_cloud_generator)
 
-      do jcol=istartcol,iendcol
-        if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
+      do idx = 1, cloud_cover_idx_length
+        jcol = cloud_cover_idx(idx)
         ! Loop over ng columns
           ! cos: the random num generation was before out of the innermost loop. 
           ! With the reordering had to be brought inside. We would need to refactor 
@@ -778,7 +801,6 @@ call omptimer_mark('cloud_generator',0, &
                 &  cum_cloud_cover(jcol,:), overhang(jcol,:), cloud%fractional_std(jcol,:), overlap_param_inhom(jcol,:), &
                 &  itrigger, iend(jcol), od_scaling(jcol,:,:))
           end if      
-        endif
       end do
     call omptimer_mark('generate_column_exp_exp',1,omphook_generate_column_exp_exp)
 call omptimer_mark('cloud_generator',1, &
@@ -952,16 +974,13 @@ call omptimer_mark('calc_fluxes_no_scattering_lw',1, &
       end if
 
       do jlev = 1,nlev
-        do jcol = istartcol,iendcol
-        ! Compute combined gas+aerosol+cloud optical properties
-          if ((total_cloud_cover(jcol) >= config%cloud_fraction_threshold) .and. &
-&               (cloud%fraction(jcol,jlev) >= config%cloud_fraction_threshold)) then
+        do idx = 1,cloud_cover_fraction_length(jlev)
+          jcol = cloud_cover_fraction(idx, jlev)
             od_cloud_new(jcol) = od_scaling(jcol,jlev,jg) &
                 &  * od_cloud(jcol,jlev,config%i_band_from_reordered_g_lw(jg))
             od_total(jcol) = od(jcol,jlev,jg) + od_cloud_new(jcol)
             ssa_total(jcol) = 0.0_jprb
             g_total(jcol)   = 0.0_jprb
-          endif
         enddo
 
         if (config%do_lw_cloud_scattering) then
@@ -971,9 +990,8 @@ call omptimer_mark('calc_fluxes_no_scattering_lw',1, &
 call omptimer_mark('set_scat_od',0, &
 &   omphook_set_scat_od)
 
-          do jcol = istartcol,iendcol
-            if ((total_cloud_cover(jcol) >= config%cloud_fraction_threshold) .and. &
-&               (cloud%fraction(jcol,jlev) >= config%cloud_fraction_threshold)) then
+            do idx = 1,cloud_cover_fraction_length(jlev)
+              jcol = cloud_cover_fraction(idx, jlev)
 
               if (config%do_lw_aerosol_scattering) then
                 ! In single precision we need to protect against the
@@ -1005,7 +1023,6 @@ call omptimer_mark('set_scat_od',0, &
                   end if
                 !end do
               end if
-            endif
           enddo
       
 call omptimer_mark('set_scat_od',1, &
@@ -1021,9 +1038,8 @@ call omptimer_mark('calc_two_stream_gammas_lw_b',0, &
 !          call calc_two_stream_gammas_lw_cond_lr(istartcol, iendcol, total_cloud_cover, cloud%fraction(:,jlev), &
 !                  & config%cloud_fraction_threshold, ssa_total, g_total, gamma1, gamma2)
 
-do jcol = istartcol,iendcol
-  if ((total_cloud_cover(jcol) >= config%cloud_fraction_threshold) .and. &
-  &               (cloud%fraction(jcol,jlev) >= config%cloud_fraction_threshold)) then
+do idx = 1,cloud_cover_fraction_length(jlev)
+  jcol = cloud_cover_fraction(idx, jlev)
   
     ! Fu et al. (1997), Eq 2.9 and 2.10:
     !      gamma1(jg) = LwDiffusivity * (1.0_jprb - 0.5_jprb*ssa(jg) &
@@ -1031,10 +1047,9 @@ do jcol = istartcol,iendcol
     !      gamma2(jg) = LwDiffusivity * 0.5_jprb * ssa(jg) &
     !           &                    * (1.0_jprb - g(jg))
     ! Reduce number of multiplications
-    factor = (LwDiffusivity * 0.5_jprb) * ssa_total(jcol)
-    gamma1(jcol) = LwDiffusivity - factor*(1.0_jprb + g_total(jcol))
-    gamma2(jcol) = factor * (1.0_jprb - g_total(jcol))
-  endif
+  factor = (LwDiffusivity * 0.5_jprb) * ssa_total(jcol)
+  gamma1(jcol) = LwDiffusivity - factor*(1.0_jprb + g_total(jcol))
+  gamma2(jcol) = factor * (1.0_jprb - g_total(jcol))
 end do
 
 
@@ -1055,43 +1070,41 @@ call omptimer_mark('calc_reflectance_transmittance_lw',0, &
 !                  &  reflectance(:,jlev), transmittance(:,jlev), &
 !                  & source_up(:,jlev), source_dn(:,jlev))
 
-do jcol = istartcol,iendcol
-  if ((total_cloud_cover(jcol) >= config%cloud_fraction_threshold) .and. &
-  &   (cloud%fraction(jcol,jlev) >= config%cloud_fraction_threshold)) then
+do idx = 1,cloud_cover_fraction_length(jlev)
+  jcol = cloud_cover_fraction(idx, jlev)
       
-    if (od_total(jcol) > 1.0e-3_jprd) then
-      k_exponent = sqrt(max((gamma1(jcol) - gamma2(jcol)) * (gamma1(jcol) + gamma2(jcol)), &
-            1.E-12_jprd)) ! Eq 18 of Meador & Weaver (1980)
-      exponential = exp_fast(-k_exponent*od_total(jcol))
-      exponential2 = exponential*exponential
-      reftrans_factor = 1.0 / (k_exponent + gamma1(jcol) + (k_exponent - gamma1(jcol))*exponential2)
-      ! Meador & Weaver (1980) Eq. 25
-      reflectance(jcol,jlev) = gamma2(jcol) * (1.0_jprd - exponential2) * reftrans_factor
-      ! Meador & Weaver (1980) Eq. 26
-      transmittance(jcol,jlev) = 2.0_jprd * k_exponent * exponential * reftrans_factor
+  if (od_total(jcol) > 1.0e-3_jprd) then
+    k_exponent = sqrt(max((gamma1(jcol) - gamma2(jcol)) * (gamma1(jcol) + gamma2(jcol)), &
+          1.E-12_jprd)) ! Eq 18 of Meador & Weaver (1980)
+    exponential = exp_fast(-k_exponent*od_total(jcol))
+    exponential2 = exponential*exponential
+    reftrans_factor = 1.0 / (k_exponent + gamma1(jcol) + (k_exponent - gamma1(jcol))*exponential2)
+    ! Meador & Weaver (1980) Eq. 25
+    reflectance(jcol,jlev) = gamma2(jcol) * (1.0_jprd - exponential2) * reftrans_factor
+    ! Meador & Weaver (1980) Eq. 26
+    transmittance(jcol,jlev) = 2.0_jprd * k_exponent * exponential * reftrans_factor
     
-      ! Compute upward and downward emission assuming the Planck
-      ! function to vary linearly with optical depth within the layer
-      ! (e.g. Wiscombe , JQSRT 1976).
+    ! Compute upward and downward emission assuming the Planck
+    ! function to vary linearly with optical depth within the layer
+    ! (e.g. Wiscombe , JQSRT 1976).
 
-      ! Stackhouse and Stephens (JAS 1991) Eqs 5 & 12
-      coeff = (planck_hl(jcol,jlev+1,jg)-planck_hl(jcol,jlev,jg)) / (od_total(jcol)*(gamma1(jcol)+gamma2(jcol)))
-      coeff_up_top  =  coeff + planck_hl(jcol,jlev,jg)
-      coeff_up_bot  =  coeff + planck_hl(jcol,jlev+1,jg)
-      coeff_dn_top  = -coeff + planck_hl(jcol,jlev,jg)
-      coeff_dn_bot  = -coeff + planck_hl(jcol,jlev+1,jg)
-      source_up(jcol,jlev) =  coeff_up_top - reflectance(jcol,jlev) * coeff_dn_top - transmittance(jcol,jlev) * coeff_up_bot
-      source_dn(jcol,jlev) =  coeff_dn_bot - reflectance(jcol,jlev) * coeff_up_bot - transmittance(jcol,jlev) * coeff_dn_top
-    else
-      k_exponent = sqrt(max((gamma1(jcol) - gamma2(jcol)) * (gamma1(jcol) + gamma2(jcol)), &
-            1.E-12_jprd)) ! Eq 18 of Meador & Weaver (1980)
-      reflectance(jcol,jlev) = gamma2(jcol) * od_total(jcol)
-      transmittance(jcol,jlev) = (1.0_jprb - k_exponent*od_total(jcol)) / (1.0_jprb + od_total(jcol)*(gamma1(jcol)-k_exponent))
-      source_up(jcol,jlev) = (1.0_jprb - reflectance(jcol,jlev) - transmittance(jcol,jlev)) &
-            &       * 0.5 * (planck_hl(jcol,jlev,jg) + planck_hl(jcol,jlev+1,jg))
-      source_dn(jcol,jlev) = source_up(jcol,jlev)
-    end if
-  endif
+    ! Stackhouse and Stephens (JAS 1991) Eqs 5 & 12
+    coeff = (planck_hl(jcol,jlev+1,jg)-planck_hl(jcol,jlev,jg)) / (od_total(jcol)*(gamma1(jcol)+gamma2(jcol)))
+    coeff_up_top  =  coeff + planck_hl(jcol,jlev,jg)
+    coeff_up_bot  =  coeff + planck_hl(jcol,jlev+1,jg)
+    coeff_dn_top  = -coeff + planck_hl(jcol,jlev,jg)
+    coeff_dn_bot  = -coeff + planck_hl(jcol,jlev+1,jg)
+    source_up(jcol,jlev) =  coeff_up_top - reflectance(jcol,jlev) * coeff_dn_top - transmittance(jcol,jlev) * coeff_up_bot
+    source_dn(jcol,jlev) =  coeff_dn_bot - reflectance(jcol,jlev) * coeff_up_bot - transmittance(jcol,jlev) * coeff_dn_top
+  else
+    k_exponent = sqrt(max((gamma1(jcol) - gamma2(jcol)) * (gamma1(jcol) + gamma2(jcol)), &
+          1.E-12_jprd)) ! Eq 18 of Meador & Weaver (1980)
+    reflectance(jcol,jlev) = gamma2(jcol) * od_total(jcol)
+    transmittance(jcol,jlev) = (1.0_jprb - k_exponent*od_total(jcol)) / (1.0_jprb + od_total(jcol)*(gamma1(jcol)-k_exponent))
+    source_up(jcol,jlev) = (1.0_jprb - reflectance(jcol,jlev) - transmittance(jcol,jlev)) &
+          &       * 0.5 * (planck_hl(jcol,jlev,jg) + planck_hl(jcol,jlev+1,jg))
+    source_dn(jcol,jlev) = source_up(jcol,jlev)
+  end if
 end do
  ! cos: END inline of calc_reflectance_transmittance_lw_cond_lr
 
