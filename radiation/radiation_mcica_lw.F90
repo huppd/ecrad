@@ -1222,22 +1222,20 @@ enddo
   end do
  end do
  
- do jcol=istartcol,iendcol
-  if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
+ do idx = 1,cloud_cover_idx_length
+  jcol = cloud_cover_idx(idx)
    ! Compute the fluxes above the highest cloud
-   flux_up(jcol,i_cloud_top(jcol)) = source(jcol,i_cloud_top(jcol)) &
+  flux_up(jcol,i_cloud_top(jcol)) = source(jcol,i_cloud_top(jcol)) &
       &                 + albedo_tmp(jcol,i_cloud_top(jcol))*flux_dn(jcol,i_cloud_top(jcol))
-  endif
  enddo
  !do jlev = i_cloud_top(jcol)-1,1,-1
  ! cos: would it make sense to revert the jcol and jlev loops here
  ! in this pattern to avoid the jcol conditional exit? performance wise need to test?
  do jlev = nlev-1,1,-1
-   do jcol=istartcol,iendcol
-    if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
-     if(jlev < i_cloud_top(jcol)) then
+  do idx = 1,cloud_cover_idx_length
+    jcol = cloud_cover_idx(idx)
+    if(jlev < i_cloud_top(jcol)) then
        flux_up(jcol,jlev) = transmittance(jcol,jlev)*flux_up(jcol,jlev+1) + source_up(jcol,jlev)
-     endif
     endif
    end do
  enddo
@@ -1247,25 +1245,26 @@ enddo
 
  !do jlev = i_cloud_top,nlev
  do jlev = 1,nlev
-  do jcol=istartcol,iendcol
-    if ((total_cloud_cover(jcol) >= config%cloud_fraction_threshold) .and. jlev >= i_cloud_top(jcol)) then
+  do idx = 1,cloud_cover_idx_length
+    jcol = cloud_cover_idx(idx)
+    if (jlev >= i_cloud_top(jcol)) then
 
-   if (is_clear_sky_layer(jcol,jlev)) then
-       flux_dn(jcol,jlev+1) = transmittance(jcol,jlev)*flux_dn(jcol,jlev) &
-            &               + source_dn(jcol,jlev)
-       flux_up(jcol,jlev+1) = albedo_tmp(jcol,jlev+1)*flux_dn(jcol,jlev+1) &
-            &               + source(jcol,jlev+1)
-   else
-       ! Shonk & Hogan (2008) Eq 14 (after simplification):
-       flux_dn(jcol,jlev+1) &
-            &  = (transmittance(jcol,jlev)*flux_dn(jcol,jlev) &
-            &     + reflectance(jcol,jlev)*source(jcol,jlev+1) &
-            &     + source_dn(jcol,jlev)) * inv_denominator(jcol,jlev)
-       ! Shonk & Hogan (2008) Eq 12:
-       flux_up(jcol,jlev+1) = albedo_tmp(jcol,jlev+1)*flux_dn(jcol,jlev+1) &
-            &               + source(jcol,jlev+1)
-   end if
-  endif
+      if (is_clear_sky_layer(jcol,jlev)) then
+          flux_dn(jcol,jlev+1) = transmittance(jcol,jlev)*flux_dn(jcol,jlev) &
+                &               + source_dn(jcol,jlev)
+          flux_up(jcol,jlev+1) = albedo_tmp(jcol,jlev+1)*flux_dn(jcol,jlev+1) &
+                &               + source(jcol,jlev+1)
+      else
+          ! Shonk & Hogan (2008) Eq 14 (after simplification):
+          flux_dn(jcol,jlev+1) &
+                &  = (transmittance(jcol,jlev)*flux_dn(jcol,jlev) &
+                &     + reflectance(jcol,jlev)*source(jcol,jlev+1) &
+                &     + source_dn(jcol,jlev)) * inv_denominator(jcol,jlev)
+          ! Shonk & Hogan (2008) Eq 12:
+          flux_up(jcol,jlev+1) = albedo_tmp(jcol,jlev+1)*flux_dn(jcol,jlev+1) &
+                &               + source(jcol,jlev+1)
+      end if
+    endif
   enddo
  end do
 
@@ -1285,7 +1284,7 @@ call omptimer_mark('calc_fluxes_no_scattering_lw_b',0, &
 &   omphook_calc_fluxes_no_scattering_lw_b)
 
 
-        call calc_fluxes_no_scattering_lw_cond_lr(istartcol,iendcol, nlev, total_cloud_cover, config%cloud_fraction_threshold, &
+        call calc_fluxes_no_scattering_lw_cond_lr(istartcol,iendcol, nlev, cloud_cover_idx, cloud_cover_idx_length, &
         &  transmittance(:,:), source_up, source_dn, emission(:,jg), albedo(:,jg), &
         &  flux_up(:,:), flux_dn(:,:))
 call omptimer_mark('calc_fluxes_no_scattering_lw_b',1, &
@@ -1306,30 +1305,29 @@ call omptimer_mark('calc_fluxes_no_scattering_lw_b',1, &
         enddo
       enddo
 
-      do jcol = istartcol,iendcol
-        if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
-          flux_up_sum(jcol,:) = flux_up_sum(jcol,:) + flux_up(jcol,:)
-          flux_dn_sum(jcol,:) = flux_dn_sum(jcol,:) + flux_dn(jcol,:)
+      do idx = 1,cloud_cover_idx_length
+        jcol = cloud_cover_idx(idx)
+        flux_up_sum(jcol,:) = flux_up_sum(jcol,:) + flux_up(jcol,:)
+        flux_dn_sum(jcol,:) = flux_dn_sum(jcol,:) + flux_dn(jcol,:)
 
-          flux_up_mul_trans_prod  = flux_up(jcol,nlev+1)
-          do jlev = nlev,1,-1
-            flux_up_mul_trans_prod = flux_up_mul_trans_prod * transmittance(jcol,jlev)
-  
-            flux_up_mul_trans_sum(jcol,jlev) = flux_up_mul_trans_sum(jcol,jlev) + flux_up_mul_trans_prod
-          enddo
-        endif
+        flux_up_mul_trans_prod  = flux_up(jcol,nlev+1)
+        do jlev = nlev,1,-1
+          flux_up_mul_trans_prod = flux_up_mul_trans_prod * transmittance(jcol,jlev)
+
+          flux_up_mul_trans_sum(jcol,jlev) = flux_up_mul_trans_sum(jcol,jlev) + flux_up_mul_trans_prod
+        enddo
       enddo
 
       do jcol = istartcol,iendcol
         flux%lw_dn_surf_clear_g(jg,jcol) = flux_dn_clear(jcol,nlev+1)
-        if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
-
-                ! Store surface spectral downwelling fluxes
-          flux%lw_dn_surf_g(jg,jcol) = total_cloud_cover(jcol)*flux_dn(jcol,nlev+1) &
-               &  + (1.0_jprb - total_cloud_cover(jcol))*flux%lw_dn_surf_clear_g(jg,jcol)
-        endif
       enddo
 
+      do idx = 1,cloud_cover_idx_length
+        jcol = cloud_cover_idx(idx)
+              ! Store surface spectral downwelling fluxes
+        flux%lw_dn_surf_g(jg,jcol) = total_cloud_cover(jcol)*flux_dn(jcol,nlev+1) &
+              &  + (1.0_jprb - total_cloud_cover(jcol))*flux%lw_dn_surf_clear_g(jg,jcol)
+      enddo
     enddo
 
     ! cos: here there are reductions on ng. Therefore we need to break the ng loop,

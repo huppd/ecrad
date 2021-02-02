@@ -763,7 +763,7 @@ end subroutine fast_adding_ica_lw_lr
 
 end subroutine calc_fluxes_no_scattering_lw_lr
 
-subroutine calc_fluxes_no_scattering_lw_cond_lr(istartcol, iendcol, nlev, total_cloud_cover, cloud_fraction_threshold, &
+subroutine calc_fluxes_no_scattering_lw_cond_lr(istartcol, iendcol, nlev, cloud_cover_idx, cloud_cover_idx_length, &
   &  transmittance, source_up, source_dn, emission_surf, albedo_surf, flux_up, flux_dn)
 
 use parkind1, only           : jprb
@@ -774,8 +774,8 @@ implicit none
 ! Inputs
 integer, intent(in) :: istartcol, iendcol ! number of columns (may be spectral intervals)
 integer, intent(in) :: nlev ! number of levels
-real(jprb), intent(in), dimension(istartcol:iendcol) :: total_cloud_cover
-real(jprb), intent(in) :: cloud_fraction_threshold
+integer, dimension(iendcol-istartcol+1) :: cloud_cover_idx
+integer :: cloud_cover_idx_length
 
 ! Surface emission (W m-2) and albedo
 real(jprb), intent(in),  dimension(istartcol:iendcol) :: emission_surf, albedo_surf
@@ -791,43 +791,39 @@ real(jprb), intent(in),  dimension(istartcol:iendcol,nlev)   :: source_up, sourc
 real(jprb), intent(out), dimension(istartcol:iendcol,nlev+1) :: flux_up, flux_dn
 
 ! Loop index for model level
-integer :: jlev, jcol
+integer :: jlev, jcol, idx
 
 real(jprb) :: hook_handle
 
 if (lhook) call dr_hook('radiation_adding_ica_lw:calc_fluxes_no_scattering_lw_cond_lr',0,hook_handle)
 
-do jcol=istartcol,iendcol
-  if (total_cloud_cover(jcol) >= cloud_fraction_threshold) then
+do idx = 1,cloud_cover_idx_length
+  jcol = cloud_cover_idx(idx)
 ! At top-of-atmosphere there is no diffuse downwelling radiation
-    flux_dn(jcol,1) = 0.0_jprb
-  endif
+  flux_dn(jcol,1) = 0.0_jprb
 enddo
 
 ! Work down through the atmosphere computing the downward fluxes
 ! at each half-level
 do jlev = 1,nlev
-  do jcol=istartcol,iendcol
-    if (total_cloud_cover(jcol) >= cloud_fraction_threshold) then  
-      flux_dn(jcol,jlev+1) = transmittance(jcol,jlev)*flux_dn(jcol,jlev) + source_dn(jcol,jlev)
-    endif
+  do idx = 1,cloud_cover_idx_length
+    jcol = cloud_cover_idx(idx)
+    flux_dn(jcol,jlev+1) = transmittance(jcol,jlev)*flux_dn(jcol,jlev) + source_dn(jcol,jlev)
   enddo
 end do
 
-do jcol=istartcol,iendcol
-  if (total_cloud_cover(jcol) >= cloud_fraction_threshold) then
-! Surface reflection and emission
-    flux_up(jcol,nlev+1) = emission_surf(jcol) + albedo_surf(jcol) * flux_dn(jcol,nlev+1)
-  endif
+do idx = 1,cloud_cover_idx_length
+  jcol = cloud_cover_idx(idx)
+  ! Surface reflection and emission
+  flux_up(jcol,nlev+1) = emission_surf(jcol) + albedo_surf(jcol) * flux_dn(jcol,nlev+1)
 enddo
 
 ! Work back up through the atmosphere computing the upward fluxes
 ! at each half-level
 do jlev = nlev,1,-1
-  do jcol=istartcol,iendcol
-    if (total_cloud_cover(jcol) >= cloud_fraction_threshold) then 
-      flux_up(jcol,jlev) = transmittance(jcol,jlev)*flux_up(jcol,jlev+1) + source_up(jcol,jlev)
-    endif
+  do idx = 1,cloud_cover_idx_length
+    jcol = cloud_cover_idx(idx)
+    flux_up(jcol,jlev) = transmittance(jcol,jlev)*flux_up(jcol,jlev+1) + source_up(jcol,jlev)
   enddo
 end do
 
