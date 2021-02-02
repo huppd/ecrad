@@ -10,13 +10,13 @@ module m_memory_pool
 
     type, public  :: stack_memory_pool
         integer(kind=c_int8_t), dimension(:), pointer, private :: mem => null()
-        integer(kind=c_intptr_t), private        :: start_ptr = 0
-        integer(kind=c_intptr_t), private        :: end_ptr = 0
+        integer(kind=c_int32_t), private        :: end_idx = 0
     contains
         procedure :: create => stack_memory_pool_create
         !procedure :: destroy => stack_memory_pool_destroy
         procedure :: allocate => stack_memory_pool_allocate
         procedure :: deallocate => stack_memory_pool_deallocate
+        procedure :: initialized => stack_memory_pool_initialized
         final :: stack_memory_pool_destroy
     end type stack_memory_pool
 
@@ -30,14 +30,20 @@ module m_memory_pool
 
     public :: sallocate_array, sdeallocate_array
   contains
+    pure function stack_memory_pool_initialized(this) result(initialized)
+        class(stack_memory_pool), intent(in) :: this
+        logical :: initialized
+
+        initialized = associated(this%mem)
+    end function stack_memory_pool_initialized
+
     subroutine stack_memory_pool_create(this, byte_size)
         class(stack_memory_pool), intent(inout) :: this
         integer(kind=c_int32_t), intent(in) :: byte_size
 
-        if (this%start_ptr == 0) then
+        if (.not. this%initialized()) then
             allocate(this%mem(byte_size))
-            this%start_ptr =  transfer(c_loc(this%mem(1)), this%start_ptr)
-            this%end_ptr = this%start_ptr
+            this%end_idx = 0
         else
             stop "stack_memory_pool already initialized"
         end if
@@ -46,28 +52,29 @@ module m_memory_pool
     subroutine stack_memory_pool_destroy(this)
         type(stack_memory_pool) :: this
 
-        if (this%start_ptr .ne. 0) then
+        if (this%initialized()) then
             deallocate(this%mem)
-            this%start_ptr = 0
-            this%end_ptr = 0
+            this%end_idx = 0
         end if
     end subroutine stack_memory_pool_destroy
 
-    function stack_memory_pool_allocate(this, byte_size) result(allocated_mem_ptr)
+    function stack_memory_pool_allocate(this, byte_size, mem_idx) result(allocated_mem_ptr)
         class(stack_memory_pool), intent(inout) :: this
         integer(kind=c_int32_t), intent(in) :: byte_size
-        integer(kind=c_intptr_t) :: allocated_mem_ptr
+        integer(kind=c_int32_t), intent(out) :: mem_idx
+        type(c_ptr) :: allocated_mem_ptr
         integer(kind=c_int32_t) :: used_mem_size
         integer(kind=c_int32_t) :: free_mem_size
         integer(kind=c_int32_t) :: total_mem_size
 
-        if (this%start_ptr .ne. 0) then
+        if (this%initialized()) then
             total_mem_size = size(this%mem, 1, kind=c_int32_t)
-            used_mem_size = this%end_ptr - this%start_ptr
+            used_mem_size = this%end_idx
             free_mem_size = total_mem_size - used_mem_size
             if (free_mem_size >=  byte_size) then
-                allocated_mem_ptr = this%end_ptr
-                this%end_ptr = this%end_ptr + byte_size
+                allocated_mem_ptr = c_loc(this%mem(1 + this%end_idx))
+                mem_idx = this%end_idx
+                this%end_idx = this%end_idx + byte_size
             else
                 stop "not enough memory"
             end if
@@ -76,14 +83,14 @@ module m_memory_pool
         end if
     end function stack_memory_pool_allocate
 
-    subroutine stack_memory_pool_deallocate(this, allocated_mem_ptr)
+    subroutine stack_memory_pool_deallocate(this, allocated_mem_idx)
         class(stack_memory_pool), intent(inout) :: this
-        integer(kind=c_intptr_t), intent(in) :: allocated_mem_ptr
+        integer(kind=c_int32_t), intent(in) :: allocated_mem_idx
 
-        if (this%start_ptr .ne. 0) then
-            if (allocated_mem_ptr >=this%start_ptr) then
-                if (allocated_mem_ptr < this%end_ptr) then
-                    this%end_ptr = allocated_mem_ptr
+        if (this%initialized()) then
+            if (allocated_mem_idx >= 0) then
+                if (allocated_mem_idx < this%end_idx) then
+                    this%end_idx = allocated_mem_idx
                 else
                     !Unfortunately due to separated declaration and initialization
                     !stack deallocations can happen out of order in Fortran
@@ -97,23 +104,22 @@ module m_memory_pool
         end if
     end subroutine stack_memory_pool_deallocate
 
-    subroutine sallocate_int_1d(stack_mem_pool, arr_ptr, size)
+    function sallocate_int_1d(stack_mem_pool, size, mem_pool_idx) result(arr_ptr)
         class(stack_memory_pool), intent(inout) :: stack_mem_pool
         integer(kind=c_int32_t), dimension(:), pointer :: arr_ptr
+        integer(kind=c_int32_t), intent(out) :: mem_pool_idx
         integer(kind=c_int32_t), intent(in) :: size
         type(c_ptr) :: ptr
-        ptr = transfer(stack_mem_pool%allocate(size * c_int32_t), ptr)
+        ptr = stack_mem_pool%allocate(size * c_int32_t, mem_pool_idx)
         call c_f_pointer(ptr, arr_ptr, shape=[size])
-    end subroutine sallocate_int_1d
+    end function sallocate_int_1d
 
-    subroutine sdeallocate_int_1d(stack_mem_pool, arr_ptr)
+    subroutine sdeallocate_int_1d(stack_mem_pool, mem_pool_idx)
         class(stack_memory_pool), intent(inout) :: stack_mem_pool
-        integer(kind=c_int32_t), dimension(:), pointer, intent(in) :: arr_ptr
+        integer(kind=c_int32_t), intent(in) :: mem_pool_idx
         integer(kind=c_intptr_t) :: ptr
-        if (size(arr_ptr, 1) > 0) then
-            ptr = transfer(c_loc(arr_ptr(1)), ptr)
-            call stack_mem_pool%deallocate(ptr)
-        end if
+
+        call stack_mem_pool%deallocate(mem_pool_idx)
     end subroutine sdeallocate_int_1d
 
 end module m_memory_pool
@@ -128,13 +134,22 @@ module m_array_int_1d
 
     type, public :: array_int_1d
          integer(kind=c_int32_t), dimension(:), pointer, private :: arr_ptr => null()
+         integer(kind=c_int32_t) :: mempool_idx = 0
          type(stack_memory_pool), pointer, private :: stack_mem_pool => null()
     contains
         procedure :: create => array_int_1d_create
+        procedure :: initialized => array_int_1d_initialized
         final :: array_int_1d_destroy
     end type array_int_1d
 
    contains
+
+    pure function array_int_1d_initialized(this) result(initialized)
+        class(array_int_1d), intent(in) :: this
+        logical :: initialized
+
+        initialized = associated(this%arr_ptr)
+    end function array_int_1d_initialized
 
     function array_int_1d_create(this, stack_mem_pool, size) result(arr_ptr)
         class(array_int_1d), intent(inout) :: this
@@ -142,8 +157,8 @@ module m_array_int_1d
         integer(kind=c_int32_t), intent(in) :: size
         integer(kind=c_int32_t), dimension(:), pointer :: arr_ptr
 
-        if (.not. associated(this%arr_ptr)) then
-            call sallocate_array(stack_mem_pool, this%arr_ptr, size)
+        if (.not. this%initialized()) then
+            this%arr_ptr => sallocate_array(stack_mem_pool, size, this%mempool_idx)
             arr_ptr => this%arr_ptr
             this%stack_mem_pool => stack_mem_pool
         else
@@ -154,8 +169,8 @@ module m_array_int_1d
     subroutine array_int_1d_destroy(this)
         type(array_int_1d) :: this
 
-        if (associated(this%arr_ptr)) then
-            call sdeallocate_array(this%stack_mem_pool, this%arr_ptr)
+        if (this%initialized()) then
+            call sdeallocate_array(this%stack_mem_pool, this%mempool_idx)
         else
             stop "Array not allocated"
         end if
@@ -168,7 +183,7 @@ use, intrinsic :: iso_c_binding
 
 implicit none
 
-integer(kind=c_int32_t), parameter :: KB = 1024, ARR_SIZE = 10, N_REPEATS = 100
+integer(kind=c_int32_t), parameter :: KB = 1024, ARR_SIZE = 10, N_REPEATS = 1000
 
 contains
 
@@ -198,13 +213,14 @@ subroutine test_stack_mempool_manual_dealloc(mem_pool)
 
     type(stack_memory_pool), intent(inout) :: mem_pool
     integer(kind=c_int32_t), dimension(:), pointer :: a, b, c
+    integer(kind=c_int32_t) :: a_mempool_idx, b_mempool_idx, c_mempool_idx
     integer(kind=c_int32_t) :: i, j
 
     print *, "test_stack_mempool_manual_dealloc start"
 
-    call sallocate_array(mem_pool, a, ARR_SIZE)
-    call sallocate_array(mem_pool, b, ARR_SIZE)
-    call sallocate_array(mem_pool, c, ARR_SIZE)
+    a => sallocate_array(mem_pool, ARR_SIZE, a_mempool_idx)
+    b => sallocate_array(mem_pool, ARR_SIZE, b_mempool_idx)
+    c => sallocate_array(mem_pool, ARR_SIZE, c_mempool_idx)
 
     do i = 1, ARR_SIZE
         a(i) = i
@@ -218,9 +234,9 @@ subroutine test_stack_mempool_manual_dealloc(mem_pool)
     print *, c
     ! It is dangerous to leave deallocation up to the programmer,
     ! as it could be forgotten
-    call sdeallocate_array(mem_pool, c)
-    call sdeallocate_array(mem_pool, b)
-    call sdeallocate_array(mem_pool, a)
+    call sdeallocate_array(mem_pool, c_mempool_idx)
+    call sdeallocate_array(mem_pool, b_mempool_idx)
+    call sdeallocate_array(mem_pool, a_mempool_idx)
 
     print *, "test_stack_mempool_manual_dealloc end"
 end subroutine test_stack_mempool_manual_dealloc
