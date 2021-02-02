@@ -1381,6 +1381,11 @@ call omptimer_mark('modify_lw_derivatives_ica',1, &
 
           end if
         end if
+      endif
+    enddo
+    do jcol = istartcol,iendcol
+      if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
+
       else
         ! No cloud in profile and clear-sky fluxes already
         ! calculated: copy them over
