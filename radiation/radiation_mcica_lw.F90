@@ -1122,7 +1122,7 @@ call omptimer_mark('calc_no_scattering_transmittance_lw_b',0, &
           ! No-scattering case: use simpler functions for
           ! transmission and emission
              call calc_no_scattering_transmittance_lw_cond_lr(istartcol, iendcol, &
-                  & total_cloud_cover, cloud%fraction(:,jlev), config%cloud_fraction_threshold, &
+                  & cloud_cover_fraction(:,jlev), cloud_cover_fraction_length(jlev), &
                   & od_total, planck_hl(:,jlev,jg), planck_hl(:,jlev+1,jg), &
                   &  transmittance(:,jlev), source_up(:,jlev), source_dn(:,jlev))
 
@@ -1151,9 +1151,10 @@ call omptimer_mark('calc_no_scattering_transmittance_lw_b',1, &
 call omptimer_mark('adding_ica_lw_b',0, &
 &   omphook_adding_ica_lw_b)
 
-        call adding_ica_lw_cond_lr(istartcol, iendcol, nlev, total_cloud_cover, config%cloud_fraction_threshold, &
+        call adding_ica_lw_cond_lr(istartcol, iendcol, nlev, cloud_cover_idx, cloud_cover_idx_length, &
 &          reflectance, transmittance(:,:), source_up, &
 &          source_dn, emission(:,jg), albedo(:,jg), flux_up(:,:), flux_dn(:,:))
+
 call omptimer_mark('adding_ica_lw_b',1, &
 &   omphook_adding_ica_lw_b)
 

@@ -238,7 +238,7 @@ end subroutine adding_ica_lw
 end subroutine adding_ica_lw_lr
 
 
-subroutine adding_ica_lw_cond_lr(istartcol, iendcol, nlev, total_cloud_cover, cloud_fraction_threshold, &
+subroutine adding_ica_lw_cond_lr(istartcol, iendcol, nlev, cloud_cover_idx, cloud_cover_idx_length, &
   &  reflectance, transmittance, source_up, source_dn, emission_surf, albedo_surf, &
   &  flux_up, flux_dn)
 
@@ -250,8 +250,8 @@ implicit none
 ! Inputs
 integer, intent(in) :: istartcol, iendcol ! number of columns (may be spectral intervals)
 integer, intent(in) :: nlev ! number of levels
-real(jprb), intent(in), dimension(istartcol:iendcol) :: total_cloud_cover
-real(jprb), intent(in) :: cloud_fraction_threshold
+integer, intent(in), dimension(iendcol-istartcol+1) :: cloud_cover_idx
+integer, intent(in) :: cloud_cover_idx_length
 
 ! Surface emission (W m-2) and albedo
 real(jprb), intent(in),  dimension(istartcol:iendcol) :: emission_surf, albedo_surf
@@ -278,19 +278,18 @@ real(jprb), dimension(istartcol:iendcol,nlev+1) :: source
 real(jprb), dimension(istartcol:iendcol,nlev)   :: inv_denominator
 
 ! Loop index for model level and column
-integer :: jlev, jcol
+integer :: jlev, jcol, idx
 
 real(jprb) :: hook_handle
 
 if (lhook) call dr_hook('radiation_adding_ica_lw:adding_ica_lw_cond_lr',0,hook_handle)
 
-do jcol = istartcol,iendcol
-  if (total_cloud_cover(jcol) >= cloud_fraction_threshold) then
-    albedo(jcol,nlev+1) = albedo_surf(jcol)
+do idx = 1, cloud_cover_idx_length
+  jcol = cloud_cover_idx(idx)
+  albedo(jcol,nlev+1) = albedo_surf(jcol)
 
-    ! At the surface, the source is thermal emission
-    source(jcol,nlev+1) = emission_surf(jcol)
-  endif
+  ! At the surface, the source is thermal emission
+  source(jcol,nlev+1) = emission_surf(jcol)
 enddo
 
 ! Work back up through the atmosphere and compute the albedo of
@@ -304,9 +303,9 @@ do jlev = nlev,1,-1
  ! and similarly for subsequent lines, but this slows down the
  ! routine by a factor of 2!  Rather, we do it with an explicit
  ! loop.
- do jcol = istartcol,iendcol
-  if (total_cloud_cover(jcol) >= cloud_fraction_threshold) then
-   ! Lacis and Hansen (1974) Eq 33, Shonk & Hogan (2008) Eq 10:
+  do idx = 1, cloud_cover_idx_length
+   jcol = cloud_cover_idx(idx)
+     ! Lacis and Hansen (1974) Eq 33, Shonk & Hogan (2008) Eq 10:
    inv_denominator(jcol,jlev) = 1.0_jprb &
         &  / (1.0_jprb-albedo(jcol,jlev+1)*reflectance(jcol,jlev))
    ! Shonk & Hogan (2008) Eq 9, Petty (2006) Eq 13.81:
@@ -318,36 +317,33 @@ do jlev = nlev,1,-1
         &                    + albedo(jcol,jlev+1)*source_dn(jcol,jlev)) &
         &                   * inv_denominator(jcol,jlev)
 
-  endif
  end do
 end do
 
-do jcol = istartcol,iendcol
-  if (total_cloud_cover(jcol) >= cloud_fraction_threshold) then
+do idx = 1, cloud_cover_idx_length
+  jcol = cloud_cover_idx(idx)
 
   ! At top-of-atmosphere there is no diffuse downwelling radiation
-    flux_dn(jcol,1) = 0.0_jprb
+  flux_dn(jcol,1) = 0.0_jprb
 
-    ! At top-of-atmosphere, all upwelling radiation is due to emission
-    ! below that level
-    flux_up(jcol,1) = source(jcol,1)
-  endif
+  ! At top-of-atmosphere, all upwelling radiation is due to emission
+  ! below that level
+  flux_up(jcol,1) = source(jcol,1)
 enddo
 
 ! Work back down through the atmosphere computing the fluxes at
 ! each half-level
 do jlev = 1,nlev
- do jcol = istartcol,iendcol
-  if (total_cloud_cover(jcol) >= cloud_fraction_threshold) then
-     ! Shonk & Hogan (2008) Eq 14 (after simplification):
-     flux_dn(jcol,jlev+1) &
-        &  = (transmittance(jcol,jlev)*flux_dn(jcol,jlev) &
-        &     + reflectance(jcol,jlev)*source(jcol,jlev+1) &
-        &     + source_dn(jcol,jlev)) * inv_denominator(jcol,jlev)
-     ! Shonk & Hogan (2008) Eq 12:
-     flux_up(jcol,jlev+1) = albedo(jcol,jlev+1)*flux_dn(jcol,jlev+1) &
-        &            + source(jcol,jlev+1)
-  endif
+  do idx = 1, cloud_cover_idx_length
+    jcol = cloud_cover_idx(idx)
+      ! Shonk & Hogan (2008) Eq 14 (after simplification):
+    flux_dn(jcol,jlev+1) &
+      &  = (transmittance(jcol,jlev)*flux_dn(jcol,jlev) &
+      &     + reflectance(jcol,jlev)*source(jcol,jlev+1) &
+      &     + source_dn(jcol,jlev)) * inv_denominator(jcol,jlev)
+    ! Shonk & Hogan (2008) Eq 12:
+    flux_up(jcol,jlev+1) = albedo(jcol,jlev+1)*flux_dn(jcol,jlev+1) &
+      &            + source(jcol,jlev+1)
  end do
 end do
 

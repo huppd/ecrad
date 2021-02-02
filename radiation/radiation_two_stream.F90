@@ -763,7 +763,7 @@ end subroutine calc_reflectance_transmittance_lw_cond_lr
 end subroutine calc_no_scattering_transmittance_lw_lr
 
 subroutine calc_no_scattering_transmittance_lw_cond_lr(istartcol, iendcol, &
-  &    total_cloud_cover, cloud_fraction, cloud_fraction_threshold, od, planck_top, &
+  &    cloud_cover_fraction, cloud_cover_fraction_length, od, planck_top, &
   &    planck_bot, transmittance, source_up, source_dn)
 
 #ifdef DO_DR_HOOK_TWO_STREAM
@@ -771,9 +771,8 @@ use yomhook, only : lhook, dr_hook
 #endif
 
 integer, intent(in) :: istartcol, iendcol
-real(jprb), intent(in), dimension(istartcol:iendcol) :: total_cloud_cover
-real(jprb), intent(in), dimension(:) :: cloud_fraction 
-real(jprb), intent(in) :: cloud_fraction_threshold
+integer, intent(in), dimension(iendcol-istartcol+1) :: cloud_cover_fraction
+integer, intent(in) :: cloud_cover_fraction_length
 
 ! Optical depth and single scattering albedo
 real(jprb), intent(in), dimension(istartcol:iendcol) :: od
@@ -793,7 +792,7 @@ real(jprb), intent(out), dimension(istartcol:iendcol) :: source_up, source_dn
 
 real(jprd) :: coeff, coeff_up_top, coeff_up_bot, coeff_dn_top, coeff_dn_bot !, planck_mean
 
-integer :: jcol
+integer :: jcol, idx
 
 #ifdef DO_DR_HOOK_TWO_STREAM
 real(jprb) :: hook_handle
@@ -801,32 +800,30 @@ real(jprb) :: hook_handle
 if (lhook) call dr_hook('radiation_two_stream:calc_no_scattering_transmittance_lw_cond_lr',0,hook_handle)
 #endif
 
-do jcol = istartcol,iendcol
-  if ((total_cloud_cover(jcol) >= cloud_fraction_threshold) .and. & 
-  &             (cloud_fraction(jcol) >= cloud_fraction_threshold)) then
+do idx = 1,cloud_cover_fraction_length
+  jcol = cloud_cover_fraction(idx)
 
-    ! Compute upward and downward emission assuming the Planck
-    ! function to vary linearly with optical depth within the layer
-    ! (e.g. Wiscombe , JQSRT 1976).
-    if (od(jcol) > 1.0e-3) then
-      ! Simplified from calc_reflectance_transmittance_lw above
-      coeff = LwDiffusivity*od(jcol)
-      transmittance(jcol) = exp_fast(-coeff)
-      coeff = (planck_bot(jcol)-planck_top(jcol)) / coeff
-      coeff_up_top  =  coeff + planck_top(jcol)
-      coeff_up_bot  =  coeff + planck_bot(jcol)
-      coeff_dn_top  = -coeff + planck_top(jcol)
-      coeff_dn_bot  = -coeff + planck_bot(jcol)
-      source_up(jcol) =  coeff_up_top - transmittance(jcol) * coeff_up_bot
-      source_dn(jcol) =  coeff_dn_bot - transmittance(jcol) * coeff_dn_top
-    else
-      ! Linear limit at low optical depth
-      coeff = LwDiffusivity*od(jcol)
-      transmittance(jcol) = 1.0_jprb - coeff
-      source_up(jcol) = coeff * 0.5_jprb * (planck_top(jcol)+planck_bot(jcol))
-      source_dn(jcol) = source_up(jcol)
-    end if
-  endif
+  ! Compute upward and downward emission assuming the Planck
+  ! function to vary linearly with optical depth within the layer
+  ! (e.g. Wiscombe , JQSRT 1976).
+  if (od(jcol) > 1.0e-3) then
+    ! Simplified from calc_reflectance_transmittance_lw above
+    coeff = LwDiffusivity*od(jcol)
+    transmittance(jcol) = exp_fast(-coeff)
+    coeff = (planck_bot(jcol)-planck_top(jcol)) / coeff
+    coeff_up_top  =  coeff + planck_top(jcol)
+    coeff_up_bot  =  coeff + planck_bot(jcol)
+    coeff_dn_top  = -coeff + planck_top(jcol)
+    coeff_dn_bot  = -coeff + planck_bot(jcol)
+    source_up(jcol) =  coeff_up_top - transmittance(jcol) * coeff_up_bot
+    source_dn(jcol) =  coeff_dn_bot - transmittance(jcol) * coeff_dn_top
+  else
+    ! Linear limit at low optical depth
+    coeff = LwDiffusivity*od(jcol)
+    transmittance(jcol) = 1.0_jprb - coeff
+    source_up(jcol) = coeff * 0.5_jprb * (planck_top(jcol)+planck_bot(jcol))
+    source_dn(jcol) = source_up(jcol)
+  end if
 end do
 
 ! Method in the older IFS radiation scheme
