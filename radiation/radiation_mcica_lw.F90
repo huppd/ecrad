@@ -1176,18 +1176,16 @@ call omptimer_mark('fast_adding_ica_lw',0, &
 !              & source_dn, emission(:,jg), albedo(:,jg), is_clear_sky_layer(:,:), i_cloud_top, &
 !              & flux_dn_clear(:,:), flux_up(:,:), flux_dn(:,:))
 
- do jcol=istartcol,iendcol
-  if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
-   ! Copy over downwelling fluxes above cloud from clear sky
-     flux_dn(jcol,1:i_cloud_top(jcol)) = flux_dn_clear(jcol,1:i_cloud_top(jcol))
+do idx = 1,cloud_cover_idx_length
+  jcol = cloud_cover_idx(idx)
+! Copy over downwelling fluxes above cloud from clear sky
+  flux_dn(jcol,1:i_cloud_top(jcol)) = flux_dn_clear(jcol,1:i_cloud_top(jcol))
 
-     albedo_tmp(jcol,nlev+1) = albedo(jcol,jg)
- 
-     ! At the surface, the source is thermal emission
-     source(jcol,nlev+1) = emission(jcol,jg)
-    
-  endif
- enddo
+  albedo_tmp(jcol,nlev+1) = albedo(jcol,jg)
+
+  ! At the surface, the source is thermal emission
+  source(jcol,nlev+1) = emission(jcol,jg)    
+enddo
 
  ! Work back up through the atmosphere and compute the albedo of
  ! the entire earth/atmosphere system below that half-level, and
@@ -1195,10 +1193,10 @@ call omptimer_mark('fast_adding_ica_lw',0, &
  ! below that level
 ! do jlev = nlev,i_cloud_top,-1
   do jlev = nlev,1,-1
-   do jcol = istartcol,iendcol
-    if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
+    do idx = 1,cloud_cover_idx_length
+     jcol = cloud_cover_idx(idx)
 
-     if(jlev >= i_cloud_top(jcol)) then
+    if(jlev >= i_cloud_top(jcol)) then
      
         if (is_clear_sky_layer(jcol,jlev)) then
         ! ! Reflectance of this layer is zero, simplifying the expression
@@ -1220,7 +1218,6 @@ call omptimer_mark('fast_adding_ica_lw',0, &
                 &                    + albedo_tmp(jcol,jlev+1)*source_dn(jcol,jlev)) &
                 &                   * inv_denominator(jcol,jlev)
         endif
-      endif
     endif
   end do
  end do
