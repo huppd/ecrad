@@ -1339,54 +1339,53 @@ call omptimer_mark('calc_fluxes_no_scattering_lw_b',1, &
       ! Sum over g-points to compute broadband fluxes
       flux%lw_up_clear(jcol,:) = flux_up_clear_sum(jcol,:) !
       flux%lw_dn_clear(jcol,:) = flux_dn_clear_sum(jcol,:)
+    enddo
 
-      if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
+    do idx = 1,cloud_cover_idx_length
+      jcol = cloud_cover_idx(idx)
         
-        ! Store overcast broadband fluxes
-        flux%lw_up(jcol,:) = flux_up_sum(jcol,:)
-        flux%lw_dn(jcol,:) = flux_dn_sum(jcol,:) 
+      ! Store overcast broadband fluxes
+      flux%lw_up(jcol,:) = flux_up_sum(jcol,:)
+      flux%lw_dn(jcol,:) = flux_dn_sum(jcol,:) 
 
-        ! Cloudy flux profiles currently assume completely overcast
-        ! skies; perform weighted average with clear-sky profile
-        flux%lw_up(jcol,:) =  total_cloud_cover(jcol) *flux%lw_up(jcol,:) &
-             &  + (1.0_jprb - total_cloud_cover(jcol))*flux%lw_up_clear(jcol,:)
-        flux%lw_dn(jcol,:) =  total_cloud_cover(jcol) *flux%lw_dn(jcol,:) &
-             &  + (1.0_jprb - total_cloud_cover(jcol))*flux%lw_dn_clear(jcol,:)
+      ! Cloudy flux profiles currently assume completely overcast
+      ! skies; perform weighted average with clear-sky profile
+      flux%lw_up(jcol,:) =  total_cloud_cover(jcol) *flux%lw_up(jcol,:) &
+            &  + (1.0_jprb - total_cloud_cover(jcol))*flux%lw_up_clear(jcol,:)
+      flux%lw_dn(jcol,:) =  total_cloud_cover(jcol) *flux%lw_dn(jcol,:) &
+            &  + (1.0_jprb - total_cloud_cover(jcol))*flux%lw_dn_clear(jcol,:)
 
-        ! Compute the longwave derivatives needed by Hogan and Bozzo
-        ! (2015) approximate radiation update scheme
-        if (config%do_lw_derivatives) then
+      ! Compute the longwave derivatives needed by Hogan and Bozzo
+      ! (2015) approximate radiation update scheme
+      if (config%do_lw_derivatives) then
 call omptimer_mark('calc_lw_derivatives_ica',0, &
 &   omphook_calc_lw_derivatives_ica)
 
 
-          call calc_lw_derivatives_ica_lr(ng, nlev, jcol, flux_up_sum(jcol,nlev+1), &
-          &    flux_up_mul_trans_sum(jcol,:), flux%lw_derivatives)
+        call calc_lw_derivatives_ica_lr(ng, nlev, jcol, flux_up_sum(jcol,nlev+1), &
+        &    flux_up_mul_trans_sum(jcol,:), flux%lw_derivatives)
 call omptimer_mark('calc_lw_derivatives_ica',1, &
 &   omphook_calc_lw_derivatives_ica)
 
 
 
-          if (total_cloud_cover(jcol) < 1.0_jprb - config%cloud_fraction_threshold) then
-            ! Modify the existing derivative with the contribution from the clear sky
+        if (total_cloud_cover(jcol) < 1.0_jprb - config%cloud_fraction_threshold) then
+          ! Modify the existing derivative with the contribution from the clear sky
 call omptimer_mark('modify_lw_derivatives_ica',0, &
 &   omphook_modify_lw_derivatives_ica)
 
-            call modify_lw_derivatives_ica_lr2(ng, nlev, jcol, &
+          call modify_lw_derivatives_ica_lr2(ng, nlev, jcol, &
 &             flux_up_clear_sum(jcol,nlev+1), flux_up_mul_trans_clear_sum(jcol,:), &
 &             1.0_jprb-total_cloud_cover(jcol), flux%lw_derivatives)
 call omptimer_mark('modify_lw_derivatives_ica',1, &
 &   omphook_modify_lw_derivatives_ica)
 
 
-          end if
         end if
-      endif
+      end if
     enddo
     do jcol = istartcol,iendcol
-      if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
-
-      else
+      if (total_cloud_cover(jcol) < config%cloud_fraction_threshold) then
         ! No cloud in profile and clear-sky fluxes already
         ! calculated: copy them over
         flux%lw_up(jcol,:) = flux%lw_up_clear(jcol,:)
