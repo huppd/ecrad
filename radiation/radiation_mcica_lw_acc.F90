@@ -206,26 +206,41 @@ contains
       flux%cloud_cover_lw(jcol) = total_cloud_cover(jcol)
     end do
 
-    is_clear_sky_layer(:,:) = .true.
-    i_cloud_top(:) = nlev+1
     ! Loop through columns
+    mask_2d = .FALSE.
     do jlev = 1,nlev
       do jcol = istartcol,iendcol
         if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
           ! Compute combined gas+aerosol+cloud optical properties
           if (cloud%fraction(jcol,jlev) >= config%cloud_fraction_threshold) then
-            is_clear_sky_layer(jcol,jlev) = .false.
-            ! Get index to the first cloudy layer from the top
-            if (i_cloud_top(jcol) > jlev) then
-              i_cloud_top(jcol) = jlev
-            end if
-            do jg = 1, ng
-              od_cloud_new(jcol,jg,jlev) = od_scaling(jcol,jg,jlev) &
-                 &  * od_cloud(jcol,config%i_band_from_reordered_g_lw(jg),jlev)
-              od_total(jcol,jg,jlev) = od(jcol,jg,jlev) + od_cloud_new(jcol,jg,jlev)
-            end do
+            mask_2d(jcol, jlev) = .TRUE.
           end if
         end if
+      end do
+    end do
+
+    is_clear_sky_layer(:,:) = .not. mask_2d(:,:)
+    i_cloud_top(:) = nlev+1
+    ! Loop through columns
+    do jlev = 1,nlev
+      do jcol = istartcol,iendcol
+        if(mask_2d(jcol, jlev)) then
+          ! Get index to the first cloudy layer from the top
+          if (i_cloud_top(jcol) > jlev) then
+            i_cloud_top(jcol) = jlev
+          end if
+        end if
+      end do
+    end do
+    do jlev = 1,nlev
+      do jg = 1, ng
+        do jcol = istartcol,iendcol
+          if(mask_2d(jcol, jlev)) then
+            od_cloud_new(jcol,jg,jlev) = od_scaling(jcol,jg,jlev) &
+               &  * od_cloud(jcol,config%i_band_from_reordered_g_lw(jg),jlev)
+            od_total(jcol,jg,jlev) = od(jcol,jg,jlev) + od_cloud_new(jcol,jg,jlev)
+          end if
+        end do
       end do
     end do
     ! Loop through columns
@@ -234,28 +249,25 @@ contains
       ! transmittance at each model level
       if (config%do_lw_aerosol_scattering) then
         do jlev = 1,nlev
-          do jcol = istartcol,iendcol
-            do jg = 1, ng
-              if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
-                ! Compute combined gas+aerosol+cloud optical properties
-                if (cloud%fraction(jcol,jlev) >= config%cloud_fraction_threshold) then
-                  if (od_total(jcol,jg,jlev) > 0.0_jprb) then
-                    ssa_total(jcol,jg,jlev) = (ssa(jcol,jg,jlev)*od(jcol,jg,jlev) &
-                       &     + ssa_cloud(jcol,config%i_band_from_reordered_g_lw(jg),jlev) &
-                       &     *  od_cloud_new(jcol,jg,jlev)) & 
-                       &     / od_total(jcol,jg,jlev)
-                  else
-                    ssa_total(jcol,jg,jlev) = 0.0_jprb
-                  endif
-                  if (ssa_total(jcol,jg,jlev) > 0.0_jprb) then
-                    g_total(jcol,jg,jlev) = (g(jcol,jg,jlev)*ssa(jcol,jg,jlev)*od(jcol,jg,jlev) &
-                       &     +   g_cloud(jcol,config%i_band_from_reordered_g_lw(jg),jlev) &
-                       &     * ssa_cloud(jcol,config%i_band_from_reordered_g_lw(jg),jlev) &
-                       &     *  od_cloud_new(jcol,jg,jlev)) &
-                       &     / (ssa_total(jcol,jg,jlev)*od_total(jcol,jg,jlev))
-                  else
-                    g_total(jcol,jg,jlev) = 0.0_jprb
-                  end if
+          do jg = 1, ng
+            do jcol = istartcol,iendcol
+              if(mask_2d(jcol,jlev)) then
+                if (od_total(jcol,jg,jlev) > 0.0_jprb) then
+                  ssa_total(jcol,jg,jlev) = (ssa(jcol,jg,jlev)*od(jcol,jg,jlev) &
+                     &     + ssa_cloud(jcol,config%i_band_from_reordered_g_lw(jg),jlev) &
+                     &     *  od_cloud_new(jcol,jg,jlev)) & 
+                     &     / od_total(jcol,jg,jlev)
+                else
+                  ssa_total(jcol,jg,jlev) = 0.0_jprb
+                endif
+                if (ssa_total(jcol,jg,jlev) > 0.0_jprb) then
+                  g_total(jcol,jg,jlev) = (g(jcol,jg,jlev)*ssa(jcol,jg,jlev)*od(jcol,jg,jlev) &
+                     &     +   g_cloud(jcol,config%i_band_from_reordered_g_lw(jg),jlev) &
+                     &     * ssa_cloud(jcol,config%i_band_from_reordered_g_lw(jg),jlev) &
+                     &     *  od_cloud_new(jcol,jg,jlev)) &
+                     &     / (ssa_total(jcol,jg,jlev)*od_total(jcol,jg,jlev))
+                else
+                  g_total(jcol,jg,jlev) = 0.0_jprb
                 end if
               end if
             end do
@@ -263,42 +275,27 @@ contains
         end do
       else
         do jlev = 1,nlev
-          do jcol = istartcol,iendcol
-            do jg = 1, ng
-              if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
-                ! Compute combined gas+aerosol+cloud optical properties
-                if (cloud%fraction(jcol,jlev) >= config%cloud_fraction_threshold) then
-                  if (od_total(jcol,jg,jlev) > 0.0_jprb) then
-                    ssa_total(jcol,jg,jlev) = ssa_cloud(jcol,config%i_band_from_reordered_g_lw(jg),jlev) &
-                       &     * od_cloud_new(jcol,jg,jlev) / od_total(jcol,jg,jlev)
-                  else
-                    ssa_total(jcol,jg,jlev) = 0.0_jprb
-                  endif
-                  if (ssa_total(jcol,jg,jlev) > 0.0_jprb) then
-                    g_total(jcol,jg,jlev) = g_cloud(jcol,config%i_band_from_reordered_g_lw(jg),jlev) &
-                       &     * ssa_cloud(jcol,config%i_band_from_reordered_g_lw(jg),jlev) &
-                       &     *  od_cloud_new(jcol,jg,jlev) / (ssa_total(jcol,jg,jlev)*od_total(jcol,jg,jlev))
-                  else
-                    g_total(jcol,jg,jlev) = 0.0_jprb
-                  endif
-                end if
+          do jg = 1, ng
+            do jcol = istartcol,iendcol
+              if(mask_2d(jcol,jlev)) then
+                if (od_total(jcol,jg,jlev) > 0.0_jprb) then
+                  ssa_total(jcol,jg,jlev) = ssa_cloud(jcol,config%i_band_from_reordered_g_lw(jg),jlev) &
+                     &     * od_cloud_new(jcol,jg,jlev) / od_total(jcol,jg,jlev)
+                else
+                  ssa_total(jcol,jg,jlev) = 0.0_jprb
+                endif
+                if (ssa_total(jcol,jg,jlev) > 0.0_jprb) then
+                  g_total(jcol,jg,jlev) = g_cloud(jcol,config%i_band_from_reordered_g_lw(jg),jlev) &
+                     &     * ssa_cloud(jcol,config%i_band_from_reordered_g_lw(jg),jlev) &
+                     &     *  od_cloud_new(jcol,jg,jlev) / (ssa_total(jcol,jg,jlev)*od_total(jcol,jg,jlev))
+                else
+                  g_total(jcol,jg,jlev) = 0.0_jprb
+                endif
               end if
             end do
           end do
         end do
       end if
-      ! Loop through columns
-      mask_2d = .FALSE.
-      do jlev = 1,nlev
-        do jcol = istartcol,iendcol
-          if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
-            ! Compute combined gas+aerosol+cloud optical properties
-            if (cloud%fraction(jcol,jlev) >= config%cloud_fraction_threshold) then
-              mask_2d(jcol, jlev) = .TRUE.
-            end if
-          end if
-        end do
-      end do
       do jlev = 1,nlev
         call calc_two_stream_gammas_lw(ng, istartcol, iendcol, mask_2d(:,jlev), ssa_total(:,:,jlev), g_total(:,:,jlev), &
         &  gamma1, gamma2)
@@ -316,16 +313,18 @@ contains
     end if
     ! Loop through columns
     do jlev = 1,nlev
-      do jcol = istartcol,iendcol
-        if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
-          if (cloud%fraction(jcol,jlev) < config%cloud_fraction_threshold) then
-            ! Clear-sky layer: copy over clear-sky values
-            reflectance(jcol,:,jlev) = ref_clear(jcol,:,jlev)
-            transmittance(jcol,:,jlev) = trans_clear(jcol,:,jlev)
-            source_up(jcol,:,jlev) = source_up_clear(jcol,:,jlev)
-            source_dn(jcol,:,jlev) = source_dn_clear(jcol,:,jlev)
+      do jg = 1,ng
+        do jcol = istartcol,iendcol
+          if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
+            if (cloud%fraction(jcol,jlev) < config%cloud_fraction_threshold) then
+              ! Clear-sky layer: copy over clear-sky values
+              reflectance(jcol,jg,jlev) = ref_clear(jcol,jg,jlev)
+              transmittance(jcol,jg,jlev) = trans_clear(jcol,jg,jlev)
+              source_up(jcol,jg,jlev) = source_up_clear(jcol,jg,jlev)
+              source_dn(jcol,jg,jlev) = source_dn_clear(jcol,jg,jlev)
+            end if
           end if
-        end if
+        end do
       end do
     end do
     mask_1d = .FALSE.
