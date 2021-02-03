@@ -35,7 +35,7 @@ module radiation_two_stream_acc
   ! The routines in this module can be called millions of times, so
   !calling Dr Hook for each one may be a significant overhead.
   !Uncomment the following to turn Dr Hook on.
-!#define DO_DR_HOOK_TWO_STREAM
+#define DO_DR_HOOK_TWO_STREAM
 
 contains
 
@@ -63,7 +63,7 @@ contains
        &                               gamma1, gamma2)
 
 #ifdef DO_DR_HOOK_TWO_STREAM
-    use ecradhook, only : lhook, dr_hook
+    use yomhook, only : lhook, dr_hook
 #endif
 
     integer, intent(in) :: ng, istartcol, iendcol
@@ -115,7 +115,7 @@ contains
        &                               gamma1, gamma2, gamma3)
 !$acc routine seq
 #ifdef DO_DR_HOOK_TWO_STREAM
-    use ecradhook, only : lhook, dr_hook
+    use yomhook, only : lhook, dr_hook
 #endif
 
     integer, intent(in) :: ng
@@ -167,7 +167,7 @@ contains
        &    reflectance, transmittance, source_up, source_dn)
 
 #ifdef DO_DR_HOOK_TWO_STREAM
-    use ecradhook, only : lhook, dr_hook
+    use yomhook, only : lhook, dr_hook
 #endif
 
     integer, intent(in) :: ng, istartcol, iendcol
@@ -265,7 +265,7 @@ contains
        &    reflectance, transmittance, source)
 
 #ifdef DO_DR_HOOK_TWO_STREAM
-    use ecradhook, only : lhook, dr_hook
+    use yomhook, only : lhook, dr_hook
 #endif
 
     integer, intent(in) :: ng
@@ -339,7 +339,7 @@ contains
        &    od, planck_bot, planck_top, transmittance, source_up, source_dn)
 
 #ifdef DO_DR_HOOK_TWO_STREAM
-    use ecradhook, only : lhook, dr_hook
+    use yomhook, only : lhook, dr_hook
 #endif
 
     integer, intent(in) :: ng, istartcol, iendcol
@@ -434,7 +434,7 @@ contains
        &      ref_dir, trans_dir_diff, trans_dir_dir)
 !$acc routine seq
 #ifdef DO_DR_HOOK_TWO_STREAM
-    use ecradhook, only : lhook, dr_hook
+    use yomhook, only : lhook, dr_hook
 #endif
 
     integer, intent(in) :: ng
@@ -562,7 +562,7 @@ contains
        &      ref_diff, trans_diff, ref_dir, trans_dir_diff, trans_dir_dir)
     
 #ifdef DO_DR_HOOK_TWO_STREAM
-    use ecradhook, only : lhook, dr_hook
+    use yomhook, only : lhook, dr_hook
 #endif
 
     integer, intent(in) :: ng
@@ -694,7 +694,7 @@ contains
        &      gamma1, gamma2, frac_scat_diffuse)
     
 #ifdef DO_DR_HOOK_TWO_STREAM
-    use ecradhook, only : lhook, dr_hook
+    use yomhook, only : lhook, dr_hook
 #endif
 
     integer, intent(in) :: ng
