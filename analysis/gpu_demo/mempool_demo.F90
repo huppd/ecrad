@@ -20,16 +20,8 @@ module m_memory_pool
         final :: stack_memory_pool_destroy
     end type stack_memory_pool
 
-    interface sallocate_array
-        module procedure sallocate_int_1d
-    end interface sallocate_array
-
-    interface sdeallocate_array
-        module procedure sdeallocate_int_1d
-    end interface sdeallocate_array
-
-    public :: sallocate_array, sdeallocate_array
   contains
+
     pure function stack_memory_pool_initialized(this) result(initialized)
         class(stack_memory_pool), intent(in) :: this
         logical :: initialized
@@ -104,6 +96,36 @@ module m_memory_pool
         end if
     end subroutine stack_memory_pool_deallocate
 
+end module m_memory_pool
+
+module m_array_int_1d
+   use, intrinsic :: iso_c_binding
+   use m_memory_pool
+
+   implicit none
+
+    interface sallocate_array
+        module procedure sallocate_int_1d
+    end interface sallocate_array
+
+    interface sdeallocate_array
+        module procedure sdeallocate_int_1d
+    end interface sdeallocate_array
+
+    public :: sallocate_array, sdeallocate_array
+
+    type, public :: array_int_1d
+         integer(kind=c_int32_t), dimension(:), pointer, private :: arr_ptr => null()
+         integer(kind=c_int32_t) :: mempool_idx = 0
+         type(stack_memory_pool), pointer, private :: stack_mem_pool => null()
+    contains
+        procedure :: create => array_int_1d_create
+        procedure :: initialized => array_int_1d_initialized
+        final :: array_int_1d_destroy
+    end type array_int_1d
+
+   contains
+
     function sallocate_int_1d(stack_mem_pool, size, mem_pool_idx) result(arr_ptr)
         class(stack_memory_pool), intent(inout) :: stack_mem_pool
         integer(kind=c_int32_t), dimension(:), pointer :: arr_ptr
@@ -121,28 +143,6 @@ module m_memory_pool
 
         call stack_mem_pool%deallocate(mem_pool_idx)
     end subroutine sdeallocate_int_1d
-
-end module m_memory_pool
-
-module m_array_int_1d
-   use, intrinsic :: iso_c_binding
-   use m_memory_pool
-
-   implicit none
-
-   private
-
-    type, public :: array_int_1d
-         integer(kind=c_int32_t), dimension(:), pointer, private :: arr_ptr => null()
-         integer(kind=c_int32_t) :: mempool_idx = 0
-         type(stack_memory_pool), pointer, private :: stack_mem_pool => null()
-    contains
-        procedure :: create => array_int_1d_create
-        procedure :: initialized => array_int_1d_initialized
-        final :: array_int_1d_destroy
-    end type array_int_1d
-
-   contains
 
     pure function array_int_1d_initialized(this) result(initialized)
         class(array_int_1d), intent(in) :: this
