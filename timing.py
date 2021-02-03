@@ -11,13 +11,13 @@ def cli(ref_file, cur_file):
     ref = pd.read_csv(
         ref_file,
         delim_whitespace=True,
-        names=["routine", "time", "ncalls"],
+        names=["routine", "time", "spread", "ncalls"],
         index_col=0,
     )
     cur = pd.read_csv(
         cur_file,
         delim_whitespace=True,
-        names=["routine", "time", "ncalls"],
+        names=["routine", "time", "spread", "ncalls"],
         index_col=0,
     )
 
