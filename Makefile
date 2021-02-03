@@ -61,9 +61,14 @@ $(info *** Building with NetCDF4/HDF5 support)
 CPPFLAGS += -DNC_NETCDF4
 endif
 
+# use loop reordered solvers
+ifdef LOOP_REORDER
+BASICFLAGS += -DLOOP_REORDER
+endif
+
 # Consolidate flags
 export FC
-export FCFLAGS = $(WARNFLAGS) $(BASICFLAGS) $(CPPFLAGS) -I../include \
+export FCFLAGS = $(WARNFLAGS) $(BASICFLAGS) $(LOOPFLAG) $(CPPFLAGS) -I../include \
 	$(OPTFLAGS) $(DEBUGFLAGS) $(NETCDF_INCLUDE) $(OMPFLAG)
 export LIBS    = $(LDFLAGS) -L../lib -lradsurf -lradiation -lutilities \
 	-lifsrrtm -ldrhook -lifsaux $(FCLIBS) $(NETCDF_LIB) $(OMPFLAG)
