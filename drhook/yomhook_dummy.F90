@@ -24,7 +24,7 @@ module yomhook
   DOUBLE PRECISION, allocatable :: tstart(:,:)
   integer, allocatable :: ncalls(:)
   CHARACTER(len=80), allocatable :: names(:)
-  integer, parameter :: hash_size = 1000
+  integer, parameter :: hash_size = 100000
   integer :: omp_num_threads
 
 contains
@@ -66,6 +66,9 @@ contains
           names(idx) = proc_name
         endif
         ncalls(idx) = ncalls(idx) + 1
+        if(trim(proc_name) /= names(idx)) then
+          print*, "careful, overlapping entries in hash table: ", proc_name, " and ", names(idx)
+        endif
       endif
       tstart(idx,thread_id) = omp_get_wtime()
     else if (iswitch == 1) then
