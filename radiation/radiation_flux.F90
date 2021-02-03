@@ -594,7 +594,7 @@ contains
     character(len=*), intent(in)    :: filename, routinename
     integer, intent(in)             :: lineno
 
-
+#ifdef _PGI
 
       if (allocated(this%lw_up)) then
         call pgi_compare(this%lw_up, "double", size(this%lw_up), "flux%lw_up", TRIM(filename), TRIM(routinename), lineno)
@@ -687,6 +687,8 @@ contains
       if (allocated(this%lw_derivatives)) then
         call pgi_compare(this%lw_derivatives, "double", size(this%lw_derivatives), "flux%lw_derivatives", TRIM(filename), TRIM(routinename), lineno)
       end if
+
+#endif
 
   end subroutine compare_flux_type
 
