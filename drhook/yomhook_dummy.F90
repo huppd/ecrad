@@ -35,7 +35,7 @@ contains
     INTEGER :: i
 
     INTEGER :: p = 31
-    INTEGER :: m = hash_size - 3
+    INTEGER :: m = 1e5 + 5
     INTEGER :: p_pow
 
     a = 0
@@ -44,6 +44,9 @@ contains
         a = MOD(a + (ichar(c(i:i)) + 1) * p_pow, m)
         p_pow = MOD(p_pow * p, m)
     END DO
+
+    ! convert to index
+    a = MOD(a, hash_size) + 1
 
   END SUBROUTINE
 
@@ -102,7 +105,7 @@ contains
 
     open(1, file="timing.txt", action="write")
 
-    do idx = 1,1000
+    do idx = 1,hash_size
       ttime = 0
       if(total_time(idx,0) > 0.0) then
         ttime = sum(total_time(idx,:)) / omp_num_threads
