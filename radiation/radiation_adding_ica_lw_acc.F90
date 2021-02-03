@@ -333,7 +333,7 @@ contains
     if (lhook) call dr_hook('radiation_adding_ica_lw_acc:calc_fluxes_no_scattering_lw',0,hook_handle)
 
     ! At top-of-atmosphere there is no diffuse downwelling radiation
-    flux_dn(:,1,:) = 0.0_jprb
+    flux_dn(:,:,1) = 0.0_jprb
 
     ! Work down through the atmosphere computing the downward fluxes
     ! at each half-level
