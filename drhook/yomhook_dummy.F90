@@ -61,8 +61,10 @@ contains
     if (iswitch == 0) then
       call char_to_hash(proc_name, idx)
       proc_key = real(idx)
-      if(thread_id == 0 .and. ncalls(idx) == 0) then
-        names(idx) = proc_name
+      if(thread_id == 0) then
+        if(ncalls(idx) == 0) then
+          names(idx) = proc_name
+        endif
         ncalls(idx) = ncalls(idx) + 1
       endif
       tstart(idx,thread_id) = omp_get_wtime()

@@ -11,13 +11,13 @@ def cli(ref_file, cur_file):
     ref = pd.read_csv(
         ref_file,
         delim_whitespace=True,
-        names=["routine", "time", "ncalls"],
+        names=["routine", "time", "spread", "ncalls"],
         index_col=0,
     )
     cur = pd.read_csv(
         cur_file,
         delim_whitespace=True,
-        names=["routine", "time", "ncalls"],
+        names=["routine", "time", "spread", "ncalls"],
         index_col=0,
     )
 
@@ -47,9 +47,10 @@ def cli(ref_file, cur_file):
     a = cur.loc[selection, "time"]
     b = ref.loc[selection, "time"]
     c = b / a
+    d = cur.loc[selection, "ncalls"]
 
-    d = pd.concat([b, a, c], axis=1)
-    d.columns = ["reference", "current", "speedup"]
+    d = pd.concat([b, a, c, d], axis=1)
+    d.columns = ["reference", "current", "speedup", "ncalls"]
     print(d)
 
 
