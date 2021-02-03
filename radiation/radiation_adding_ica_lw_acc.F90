@@ -70,10 +70,10 @@ contains
 
     if (lhook) call dr_hook('radiation_adding_ica_lw_acc:adding_ica_lw',0,hook_handle)
 
-    albedo(:,nlev+1,:) = albedo_surf
+    albedo(:,:,nlev+1) = albedo_surf
 
     ! At the surface, the source is thermal emission
-    source(:,nlev+1,:) = emission_surf
+    source(:,:,nlev+1) = emission_surf
 
     ! Work back up through the atmosphere and compute the albedo of
     ! the entire earth/atmosphere system below that half-level, and
@@ -81,14 +81,14 @@ contains
     ! below that level
     ! Loop through columns
     do jlev = nlev,1,-1
-      do jcol = istartcol,iendcol
+      do jg = 1,ng
+        do jcol = istartcol,iendcol
       ! Next loop over columns. We could do this by indexing the
       ! entire inner dimension as follows, e.g. for the first line:
       !   inv_denominator(:,jlev) = 1.0_jprb / (1.0_jprb-albedo(:,jlev+1)*reflectance(:,jlev))
       ! and similarly for subsequent lines, but this slows down the
       ! routine by a factor of 2!  Rather, we do it with an explicit
       ! loop.
-        do jg = 1,ng
           if (mask(jcol)) then
             ! Lacis and Hansen (1974) Eq 33, Shonk & Hogan (2008) Eq 10:
             inv_denominator(jcol,jg,jlev) = 1.0_jprb &
@@ -107,18 +107,18 @@ contains
     end do
 
     ! At top-of-atmosphere there is no diffuse downwelling radiation
-    flux_dn(:,1,:) = 0.0_jprb
+    flux_dn(:,:,1) = 0.0_jprb
 
     ! At top-of-atmosphere, all upwelling radiation is due to emission
     ! below that level
-    flux_up(:,1,:) = source(:,1,:)
+    flux_up(:,:,1) = source(:,:,1)
 
     ! Work back down through the atmosphere computing the fluxes at
     ! each half-level
     do jlev = 1,nlev
       ! Loop through columns
-      do jcol = istartcol,iendcol
-        do jg = 1,ng
+      do jg = 1,ng
+        do jcol = istartcol,iendcol
           if (mask(jcol)) then
             ! Shonk & Hogan (2008) Eq 14 (after simplification):
             flux_dn(jcol,jg,jlev+1) &
