@@ -15,7 +15,7 @@ ifndef DEBUG
 # --NORMAL CONFIGURATION--
 
 # Optimization flags
-OPTFLAGS = -O3
+OPTFLAGS = -O3  -fopt-info-all
 
 # Warning flags: all except those that warn about unused stuff
 WARNFLAGS = -Wall -Wno-unused-label -Wno-unused-dummy-argument -Wno-unused-variable
