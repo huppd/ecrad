@@ -6,7 +6,7 @@ __author__ = "Mikhail Zhigun"
 import sys
 assert sys.version_info[0] >= 3 and sys.version_info[1] >= 6, 'Python >= 3.6 is required'
 import config
-from typing import Optional, NamedTuple
+from typing import Optional, NamedTuple, List
 import subprocess, os, tempfile, argparse
 from contextlib import contextmanager
 import xarray as xr
@@ -20,6 +20,7 @@ from cpu_reg_test_report_serialization import cpu_regression_test_report as CPUR
 from cpuinfo import get_cpu_info
 from statistics import mean, stdev
 
+THIS_DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 CPU_MODEL_NAME = get_cpu_info()['brand_raw']
 TMPFS_DIR = '/dev/shm'
 
@@ -450,6 +451,137 @@ def multiply_dataset(in_filename: str, out_filename: str, n_times: int):
     out.to_netcdf(out_filename)
 
 
+def run_timing_testcase(name: str, solver_type: str, block_size: int, omp_enabled: bool, num_runs: int,
+                        out_timings: List[int], timing_step_name: str = 'computation',
+                        reference_file_path: Optional[str] = None,  cmp_abs_tolerance: float = 0.0001,
+                        working_dir: Optional[str] = None) -> bool:
+    in_working_dir = working_dir
+    in_file_path = os.path.join(config.TEST_DATA_INPUT_DIR, name + '.nc')
+    with prepare_dir(in_working_dir, TMPFS_DIR) as working_dir:
+        basename = f'{name}_{solver_type}'
+        output_file_path = os.path.join(working_dir, f'{basename}.nc')
+        driver_report_path = os.path.join(working_dir, f'{basename}_drv_report.xml')
+        driver_cfg_path = os.path.join(working_dir, f'{basename}_config.nam')
+        assert file_exists(config.INPUT_DRIVER_CFG_TEMPLATE_FILEPATH), \
+            f'Input cfg template "{config.INPUT_DRIVER_CFG_TEMPLATE_FILEPATH}" not found'
+        cfg_file_txt = None
+        with open(config.INPUT_DRIVER_CFG_TEMPLATE_FILEPATH, 'r') as f:
+            cfg_file_txt = f.read()
+        cfg_file_txt = cfg_file_txt.format(openmp_enabled=omp_enabled,
+                                           block_size=block_size,
+                                           output_report_path=driver_report_path,
+                                           output_cfg_path=driver_cfg_path,
+                                           cfg_dir_path=config.RADIATION_CFG_DIR,
+                                           sw_solver_type=solver_type,
+                                           lw_solver_type=solver_type)
+        with open(driver_cfg_path, 'w') as f:
+            f.write(cfg_file_txt)
+        args = (config.DRIVER_BIN, driver_cfg_path, in_file_path, output_file_path)
+        step_name_by_idx = []
+        step_durations_by_idx = []
+        for i in range(0, num_runs):
+            p = subprocess.run(args=args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=working_dir)
+
+            def on_fail(reason: str, p=p, args=args):
+                print(f'ECRAD driver run failed! Reason: {reason}')
+                print(f'args: {args}')
+                if p.stderr is not None:
+                    stderr = p.stderr.decode('utf-8').lower()
+                    print(f'stderr: {stderr}')
+
+            if p.returncode != 0:
+                on_fail('return code not zero')
+                return False
+            if not file_exists(output_file_path):
+                on_fail('output file missing')
+                return False
+            if not file_exists(driver_report_path):
+                on_fail('report missing')
+                return False
+            if reference_file_path is not None:
+                if not file_exists(reference_file_path):
+                    print(f'Reference file {reference_file_path} not found')
+                    return False
+                if not nc_equal(reference_file_path, output_file_path, cmp_abs_tolerance):
+                    print(f'Output file {output_file_path} is not equal to {reference_file_path} within absolute tolerance'+
+                          f' {cmp_abs_tolerance}')
+                    return False
+
+            drv_report = parse_driver_report(driver_report_path)
+            if i != 0:
+                if len(drv_report.get_step()) != len(step_name_by_idx):
+                    on_fail('Run {i}: different number of steps')
+                    return False
+
+            for si in range(0, len(drv_report.get_step())):
+                step = drv_report.get_step()[si]
+                step_name = step.get_name()
+                step_result = step.get_result()
+                if not step_result:
+                    on_fail(f'Run {i}: Step "{step_name}" failed')
+                    return False
+                step_duration = get_step_duration(step)
+                if i == 0:
+                    step_name_by_idx.append(step_name)
+                    step_durations_by_idx.append([])
+                if step_name != step_name_by_idx[si]:
+                    on_fail(f'Run {i}: Step "{step_name}" unexpected')
+                    return False
+                step_durations_by_idx[si].append(step_duration)
+        out_timings.clear()
+        step_name_idx = step_name_by_idx.index(timing_step_name)
+        out_timings.extend(step_durations_by_idx[step_name_idx])
+    return True
+
+
+class BlockLengthTestRes(NamedTuple):
+    block_size: int
+    test_case_name: str
+    solver_name: str
+    omp_enabled: bool
+    timings: List[int]
+
+
+class BlockLengthTestsRes(NamedTuple):
+    cpu_model_name: str
+    min_block_size: int
+    max_block_size: int
+    num_runs: int
+    test_cases: List[str]
+    solver_types: List[str]
+    results: List[BlockLengthTestRes]
+
+import pickle
+
+def run_block_length_tests(out_file_path: str, min_block_size: int = 1, max_block_size: int = 2, n_runs: int = 1):
+    print('Block length tests:')
+    all_tests_res = True
+    res_data = []
+    for block_size in range(min_block_size, max_block_size + 1):
+        for test_case_name in config.TEST_CASES:
+            for solver_type in config.SOLVER_TYPES:
+                print(f'\t{test_case_name} solver: {solver_type} {green_text("STARTED")}')
+                for omp_enabled in (False, True):
+                    for run_idx in range(1, n_runs + 1):
+                        timings = []
+                        res = run_timing_testcase(test_case_name, solver_type, block_size, omp_enabled, n_runs, timings)
+                        if res:
+                            res_data.append(BlockLengthTestRes(block_size, test_case_name, solver_type, omp_enabled, timings))
+                        else:
+                            all_tests_res = False
+                print(f'\t{test_case_name} solver: {solver_type} {green_text("SUCCESS") if res else red_text("FAILED")}')
+    all_res = BlockLengthTestsRes(cpu_model_name=CPU_MODEL_NAME,
+                                  min_block_size=min_block_size,
+                                  max_block_size=max_block_size,
+                                  num_runs=n_runs,
+                                  test_cases=config.TEST_CASES,
+                                  solver_types=config.SOLVER_TYPES,
+                                  results=res_data)
+    with open(out_file_path, 'wb') as f:
+        s = pickle.dumps(all_res)
+        f.write(s)
+
+
 def main() -> bool:
     parser = argparse.ArgumentParser(description="ECRAD automated tests runner")
     group = parser.add_mutually_exclusive_group()
@@ -459,6 +591,11 @@ def main() -> bool:
     group.add_argument("--run-ci-tests", help="Run continuous integration tests", action='store_true')
     group.add_argument("--run-ci-tol-tests", help="Run continuous integration tolerance tests", action='store_true')
     group.add_argument("--run-cpu-reg-tests", help="Run CPU regression tests", action='store_true')
+    group.add_argument("--run-block-len-test", help="Find optimal block length", action='store_true')
+    parser.add_argument("--block-len-test-min-size", type=int, default=1)
+    parser.add_argument("--block-len-test-max-size", type=int, default=64)
+    parser.add_argument("--block-len-test-num-runs", type=int, default=10)
+    parser.add_argument("--block-len-test-out-file-name", type=str, default='block-len-test-results.bin')
     args = parser.parse_args()
     if args.reset_ci_tests:
         return reset_ci_tests()
@@ -472,6 +609,14 @@ def main() -> bool:
         return run_ci_tol_tests()
     elif args.run_cpu_reg_tests:
         return run_ci_cpu_regression_tests()
+    elif args.run_block_len_test:
+        min_size = args.block_len_test_min_size
+        max_size = args.block_len_test_max_size
+        num_runs = args.block_len_test_num_runs
+        out_file_path = args.block_len_test_out_file_name
+        if not os.path.isabs(out_file_path):
+            out_file_path = os.path.join(THIS_DIR_PATH, out_file_path)
+        run_block_length_tests(out_file_path, min_size, max_size, num_runs)
     return True
 
 
