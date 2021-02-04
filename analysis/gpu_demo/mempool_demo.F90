@@ -9,7 +9,7 @@ module m_memory_pool
     private
 
     type, public  :: stack_memory_pool
-        integer(kind=c_int8_t), dimension(:), pointer, private :: mem => null()
+        integer(kind=c_int8_t), dimension(:), pointer, public :: mem => null()
         integer(kind=c_int32_t), private        :: end_idx = 0
     contains
         procedure :: create => stack_memory_pool_create
@@ -269,6 +269,52 @@ subroutine test_stack_mempool_auto_dealloc(mem_pool)
     print *, "test_stack_mempool_auto_dealloc end"
 end subroutine test_stack_mempool_auto_dealloc
 
+subroutine test_stack_mempool_auto_dealloc_with_acc(mem_pool)
+    use m_memory_pool
+    use m_array_int_1d
+    use openacc
+    type(stack_memory_pool), intent(inout) :: mem_pool
+    type(array_int_1d) :: a_, b_, c_
+    integer(kind=c_int32_t), dimension(:), pointer :: a, b, c
+    integer(kind=c_int32_t) :: i, j
+
+    print *, "test_stack_mempool_auto_dealloc_with_acc start"
+    ! copyin(mem_pool) should have worked, but it didn't
+    ! TODO: find out why
+    !$acc data present_or_copyin(mem_pool%mem)
+    a => a_%create(mem_pool, ARR_SIZE)
+    b => b_%create(mem_pool, ARR_SIZE)
+    c => c_%create(mem_pool, ARR_SIZE)
+
+    ! a, b, c point to locations inside memory pool, so there is no need to copy them
+    !$acc data present(a, b, c)
+    !print *, acc_deviceptr(mem_pool%mem)
+    !print *, acc_deviceptr(b)
+    !print *, acc_deviceptr(c)
+    !$acc parallel default(none) num_gangs(1) num_workers(1) vector_length(128)
+    !$acc loop vector
+    do i = 1, ARR_SIZE
+        a(i) = i
+        b(i) = ARR_SIZE - i
+    end do
+
+    !$acc loop vector
+    do i = 1, ARR_SIZE
+        c(i) = a(i) + b(i)
+    end do
+
+    !$acc end parallel
+    !$acc update host(a, b, c)
+    !$acc end data
+    !$acc end data
+
+    print *, 'a:', a
+    print *, 'b:',b
+    print *, 'c:',c
+
+    print *, "test_stack_mempool_auto_dealloc_with_acc end"
+end subroutine test_stack_mempool_auto_dealloc_with_acc
+
 end module m_mempool_tests
 
 
@@ -295,6 +341,10 @@ end do
 !------------------------
 do j = 1, N_REPEATS
     call test_stack_mempool_auto_dealloc(mem_pool)
+end do
+!------------------------
+do j = 1, N_REPEATS
+    call test_stack_mempool_auto_dealloc_with_acc(mem_pool)
 end do
 
 end program mempool_test
