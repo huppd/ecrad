@@ -50,6 +50,7 @@ program ecrad_driver
   use radiation_cloud,          only : cloud_type
   use radiation_aerosol,        only : aerosol_type
   use radiation_flux,           only : flux_type
+  use radiation_flux_acc,       only : flux_type_acc
   use radiation_save,           only : save_fluxes, save_inputs
   use ecrad_driver_config,      only : driver_config_type
   use ecrad_driver_read_input,  only : read_input
@@ -80,6 +81,7 @@ program ecrad_driver
 
   ! Derived type containing outputs from the radiation scheme
   type(flux_type)           :: flux
+  type(flux_type_acc)       :: flux_r
 
   integer :: ncol, nlev         ! Number of columns and levels
   integer :: istartcol, iendcol ! Range of columns to process
@@ -262,6 +264,7 @@ program ecrad_driver
   ! of dimension n_bands_sw/n_bands_lw, so must be called after
   ! setup_radiation
   call flux%allocate(config, 1, ncol, nlev)
+  call flux_r%allocate(config, 1, ncol, nlev)
   
   if (driver_config%iverbose >= 2) then
     write(nulout,'(a)')  'Performing radiative transfer calculations'
@@ -299,7 +302,7 @@ program ecrad_driver
         
         ! Call the ECRAD radiation scheme
         call radiation(ncol, nlev, istartcol, iendcol, config, &
-             &  single_level, thermodynamics, gas, cloud, aerosol, flux)
+             &  single_level, thermodynamics, gas, cloud, aerosol, flux, flux_r)
         
         if (is_complex_surface) then
           call surface_intermediate%partition_fluxes(driver_config%istartcol, &

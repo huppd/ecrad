@@ -1,5 +1,5 @@
 SOURCES = radiation_aerosol.F90 radiation_config.F90 \
-	radiation_flux.F90 	radiation_cloud.F90 \
+	radiation_flux.F90 radiation_flux_acc.F90 radiation_cloud.F90 \
 	radiation_thermodynamics.F90 radiation_lw_derivatives.F90 \
 	radiation_lw_derivatives_acc.F90 \
 	radiation_gas.F90	radiation_single_level.F90 \
@@ -37,9 +37,9 @@ $(LIBRAD): $(OBJECTS)
 clean:
 	rm -f *.o $(LIBRAD)
 
-radiation_flux.o radiation_aerosol.o: radiation_config.o 
+radiation_flux.o radiation_flux_acc.o radiation_aerosol.o: radiation_config.o 
 radiation_interface.o: radiation_aerosol.o radiation_config.o \
-	radiation_flux.o radiation_cloud.o radiation_save.o \
+	radiation_flux.o radiation_flux_acc.o radiation_cloud.o radiation_save.o \
 	radiation_single_level.o radiation_gas.o radiation_monochromatic.o \
 	radiation_thermodynamics.o radiation_spartacus_sw.o \
 	radiation_spartacus_lw.o radiation_cloud_optics.o \
@@ -92,4 +92,4 @@ radiation_aerosol_optics.F90 radiation_cloud_optics.F90 radiation_homogeneous_sw
 radiation_spartacus_sw.o radiation_spartacus_lw.o \
 	radiation_tripleclouds_sw.o radiation_tripleclouds_lw.o: \
 	radiation_optical_depth_scaling.h radiation_overlap.o \
-	radiation_matrix.o radiation_flux.o radiation_regions.o
+	radiation_matrix.o radiation_flux.o radiation_flux_acc.o radiation_regions.o

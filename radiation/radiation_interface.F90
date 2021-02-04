@@ -173,7 +173,7 @@ contains
   ! to reverse the order for the computation and then reverse the
   ! order of the output fluxes to match the inputs.
   subroutine radiation(ncol, nlev, istartcol, iendcol, config, &
-       &  single_level, thermodynamics, gas, cloud, aerosol, flux)
+       &  single_level, thermodynamics, gas, cloud, aerosol, flux, flux_r)
 
     use parkind1,                 only : jprb
     use yomhook,                  only : lhook, dr_hook
@@ -189,16 +189,13 @@ contains
     use radiation_cloud,          only : cloud_type
     use radiation_aerosol,        only : aerosol_type
     use radiation_flux,           only : flux_type
+    use radiation_flux_acc,       only : flux_type_acc
     use radiation_spartacus_sw,   only : solver_spartacus_sw
     use radiation_spartacus_lw,   only : solver_spartacus_lw
     use radiation_tripleclouds_sw,only : solver_tripleclouds_sw
     use radiation_tripleclouds_lw,only : solver_tripleclouds_lw
     use radiation_mcica_sw,       only : solver_mcica_sw
-#ifdef LOOP_REORDER
     use radiation_mcica_lw_acc,   only : solver_mcica_lw
-#else
-    use radiation_mcica_lw,       only : solver_mcica_lw
-#endif
     use radiation_cloudless_sw,   only : solver_cloudless_sw
     use radiation_cloudless_lw,   only : solver_cloudless_lw
     use radiation_homogeneous_sw, only : solver_homogeneous_sw
@@ -226,6 +223,10 @@ contains
     type(aerosol_type),       intent(in)   :: aerosol
     ! Output
     type(flux_type),          intent(inout):: flux
+    type(flux_type_acc), optional, intent(inout):: flux_r
+
+    ! flux type with reordered memory
+
 
 
     ! Local variables
@@ -415,6 +416,17 @@ contains
             end do
           end do
 
+          if (config%do_clear) then
+            flux_r%lw_up_clear(istartcol:iendcol,nlev+1) = flux%lw_up_clear(istartcol:iendcol,nlev+1)
+            flux_r%lw_dn_clear(istartcol:iendcol,nlev+1) = flux%lw_dn_clear(istartcol:iendcol,nlev+1)
+          end if
+          flux_r%lw_up(istartcol:iendcol,nlev+1) = flux%lw_up(istartcol:iendcol,nlev+1)
+          flux_r%lw_dn(istartcol:iendcol,nlev+1) = flux%lw_dn(istartcol:iendcol,nlev+1)
+          if (config%do_lw_derivatives) then
+            flux_r%lw_derivatives(istartcol:iendcol,nlev+1) = flux%lw_derivatives(istartcol:iendcol,nlev+1)
+          end if
+          flux_r%cloud_cover_lw(istartcol:iendcol) = flux%cloud_cover_lw(istartcol:iendcol)
+
           do jlev = 1,nlev+1
             do jg = 1, config%n_g_lw
               do jcol = istartcol,iendcol
@@ -426,7 +438,11 @@ contains
           do jg = 1, config%n_g_lw
             do jcol = istartcol,iendcol
               lw_emission_r(jcol, jg) = lw_emission(jg, jcol) 
-              lw_albedo_r(jcol, jg) = lw_albedo(jg, jcol) 
+              lw_albedo_r(jcol, jg) = lw_albedo(jg, jcol)
+              if (config%do_clear) then
+                flux_r%lw_dn_surf_clear_g(jcol, jg) = flux%lw_dn_surf_clear_g(jg, jcol)
+              end if
+              flux_r%lw_dn_surf_g(jcol, jg) = flux%lw_dn_surf_g(jg, jcol)
             end do
           end do
 
@@ -451,7 +467,7 @@ contains
           call solver_mcica_lw(nlev,istartcol,iendcol, &
                &  config, single_level, cloud, & 
                &  od_lw_r, ssa_lw_r, g_lw_r, od_lw_cloud_r, ssa_lw_cloud_r, &
-               &  g_lw_cloud_r, planck_hl_r, lw_emission_r, lw_albedo_r, flux)
+               &  g_lw_cloud_r, planck_hl_r, lw_emission_r, lw_albedo_r, flux_r)
 
           ! rearrange memory
           do jlev = 1,nlev
@@ -470,6 +486,17 @@ contains
               end do
             end do
           end do
+
+          if (config%do_clear) then
+            flux%lw_up_clear = flux_r%lw_up_clear
+            flux%lw_dn_clear = flux_r%lw_dn_clear
+          end if
+          flux%lw_up = flux_r%lw_up
+          flux%lw_dn = flux_r%lw_dn
+          if (config%do_lw_derivatives) then
+            flux%lw_derivatives = flux_r%lw_derivatives
+          end if
+          flux%cloud_cover_lw(istartcol:iendcol) = flux_r%cloud_cover_lw(istartcol:iendcol)
     
           do jlev = 1,nlev+1
             do jg = 1, config%n_g_lw
@@ -483,6 +510,10 @@ contains
             do jcol = istartcol,iendcol
               lw_emission(jg, jcol) = lw_emission_r(jcol, jg)
               lw_albedo(jg, jcol) = lw_albedo_r(jcol, jg)
+              if (config%do_clear) then
+                flux%lw_dn_surf_clear_g(jg, jcol) = flux_r%lw_dn_surf_clear_g(jcol, jg)
+              end if
+              flux%lw_dn_surf_g(jg, jcol) = flux_r%lw_dn_surf_g(jcol, jg)
             end do
           end do
     
@@ -576,7 +607,8 @@ contains
       call flux%calc_surface_spectral(config, istartcol, iendcol)
 
     end if
-    
+    ! call flux_r%deallocate()
+
     if (lhook) call dr_hook('radiation_interface:radiation',1,hook_handle)
 
   end subroutine radiation

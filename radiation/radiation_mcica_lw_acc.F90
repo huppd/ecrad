@@ -41,7 +41,7 @@ contains
     use radiation_config, only         : config_type
     use radiation_single_level, only   : single_level_type
     use radiation_cloud, only          : cloud_type
-    use radiation_flux, only           : flux_type
+    use radiation_flux_acc, only       : flux_type_acc
     use radiation_two_stream_acc, only : calc_two_stream_gammas_lw, &
          &                               calc_reflectance_transmittance_lw, &
          &                               calc_no_scattering_transmittance_lw
@@ -82,7 +82,7 @@ contains
     real(jprb), intent(in), dimension(istartcol:iendcol, config%n_g_lw) :: emission, albedo
 
     ! Output
-    type(flux_type), intent(inout):: flux
+    type(flux_type_acc), intent(inout):: flux
 
     ! Local variables
 
@@ -181,13 +181,19 @@ contains
       ref_clear = 0.0_jprb
     endif
 
+    flux%lw_up_clear(istartcol:iendcol,:) = 0
+    flux%lw_dn_clear(istartcol:iendcol,:) = 0
     ! Loop through columns
-    do jcol = istartcol,iendcol
-      ! Sum over g-points to compute broadband fluxes
-      flux%lw_up_clear(jcol,:) = sum(flux_up_clear(jcol,:,:),1)
-      flux%lw_dn_clear(jcol,:) = sum(flux_dn_clear(jcol,:,:),1)
-      ! Store surface spectral downwelling fluxes
-      flux%lw_dn_surf_clear_g(:,jcol) = flux_dn_clear(jcol,:,nlev+1)
+    do jlev = 1,nlev+1
+      do jg = 1,config%n_g_lw
+        do jcol = istartcol,iendcol
+          ! Sum over g-points to compute broadband fluxes
+          flux%lw_up_clear(jcol,jlev) = flux%lw_up_clear(jcol,jlev) + flux_up_clear(jcol,jg,jlev)
+          flux%lw_dn_clear(jcol,jlev) = flux%lw_dn_clear(jcol,jlev) + flux_dn_clear(jcol,jg,jlev)
+          ! Store surface spectral downwelling fluxes
+          flux%lw_dn_surf_clear_g(jcol,jg) = flux_dn_clear(jcol,jg,nlev+1)
+        end do
+      end do
     end do
 
     ! Loop through columns
@@ -360,26 +366,44 @@ contains
            &  transmittance, source_up, source_dn, emission, albedo, &
            &  flux_up, flux_dn)
     end if
+
+    flux%lw_up(istartcol:iendcol,:) = 0
+    flux%lw_dn(istartcol:iendcol,:) = 0
     ! Loop through columns
-    do jcol = istartcol,iendcol
-      if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
-        ! Store overcast broadband fluxes
-        flux%lw_up(jcol,:) = sum(flux_up(jcol,:,:),1)
-        flux%lw_dn(jcol,:) = sum(flux_dn(jcol,:,:),1)
-
-        ! Cloudy flux profiles currently assume completely overcast
-        ! skies; perform weighted average with clear-sky profile
-        flux%lw_up(jcol,:) =  total_cloud_cover(jcol) *flux%lw_up(jcol,:) &
-             &  + (1.0_jprb - total_cloud_cover(jcol))*flux%lw_up_clear(jcol,:)
-        flux%lw_dn(jcol,:) =  total_cloud_cover(jcol) *flux%lw_dn(jcol,:) &
-             &  + (1.0_jprb - total_cloud_cover(jcol))*flux%lw_dn_clear(jcol,:)
-        ! Store surface spectral downwelling fluxes
-        flux%lw_dn_surf_g(:,jcol) = total_cloud_cover(jcol)*flux_dn(jcol,:,nlev+1) &
-             &  + (1.0_jprb - total_cloud_cover(jcol))*flux%lw_dn_surf_clear_g(:,jcol)
-
-        ! Compute the longwave derivatives needed by Hogan and Bozzo
-        ! (2015) approximate radiation update scheme
-      end if
+    do jlev = 1,nlev+1
+      do jg = 1,config%n_g_lw
+        do jcol = istartcol,iendcol
+          if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
+            ! Store overcast broadband fluxes
+            flux%lw_up(jcol,jlev) = flux%lw_up(jcol,jlev) + flux_up(jcol,jg,jlev)
+            flux%lw_dn(jcol,jlev) = flux%lw_dn(jcol,jlev) + flux_dn(jcol,jg,jlev)
+          endif
+        end do
+      end do
+    end do
+    do jlev = 1,nlev+1
+      do jcol = istartcol,iendcol
+        if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
+          ! Cloudy flux profiles currently assume completely overcast
+          ! skies; perform weighted average with clear-sky profile
+          flux%lw_up(jcol,jlev) =  total_cloud_cover(jcol) *flux%lw_up(jcol,jlev) &
+               &  + (1.0_jprb - total_cloud_cover(jcol))*flux%lw_up_clear(jcol,jlev)
+          flux%lw_dn(jcol,jlev) =  total_cloud_cover(jcol) *flux%lw_dn(jcol,jlev) &
+               &  + (1.0_jprb - total_cloud_cover(jcol))*flux%lw_dn_clear(jcol,jlev)
+        endif
+      end do
+    end do
+    do jg = 1,config%n_g_lw
+      do jcol = istartcol,iendcol
+        if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
+          ! Store surface spectral downwelling fluxes
+          flux%lw_dn_surf_g(jcol,jg) = total_cloud_cover(jcol)*flux_dn(jcol,jg,nlev+1) &
+               &  + (1.0_jprb - total_cloud_cover(jcol))*flux%lw_dn_surf_clear_g(jcol,jg)
+        
+          ! Compute the longwave derivatives needed by Hogan and Bozzo
+          ! (2015) approximate radiation update scheme
+        end if
+      end do
     end do
     if (config%do_lw_derivatives) then
       call calc_lw_derivatives_ica(ng, nlev, istartcol, iendcol, mask_1d, transmittance, flux_up(:,:,nlev+1), &
@@ -399,14 +423,16 @@ contains
     end if
 
     ! Loop through columns
-    do jcol = istartcol,iendcol
-      if (total_cloud_cover(jcol) < config%cloud_fraction_threshold) then
-        ! No cloud in profile and clear-sky fluxes already
-        ! calculated: copy them over
-        flux%lw_up(jcol,:) = flux%lw_up_clear(jcol,:)
-        flux%lw_dn(jcol,:) = flux%lw_dn_clear(jcol,:)
-        flux%lw_dn_surf_g(:,jcol) = flux%lw_dn_surf_clear_g(:,jcol)
-      end if
+    do jlev = 1,nlev+1
+      do jcol = istartcol,iendcol
+        if (total_cloud_cover(jcol) < config%cloud_fraction_threshold) then
+          ! No cloud in profile and clear-sky fluxes already
+          ! calculated: copy them over
+          flux%lw_up(jcol,jlev) = flux%lw_up_clear(jcol,jlev)
+          flux%lw_dn(jcol,jlev) = flux%lw_dn_clear(jcol,jlev)
+          flux%lw_dn_surf_g(jcol,jlev) = flux%lw_dn_surf_clear_g(jcol,jlev)
+        end if
+      end do
     end do
     if (config%do_lw_derivatives) then
       mask_1d = .FALSE.
