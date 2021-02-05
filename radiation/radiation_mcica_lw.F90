@@ -456,7 +456,7 @@ end subroutine generate_column_exp_exp_lr
 & omphook_adding_ica_lw_b, omphook_fast_adding_ica_lw, &
 & omphook_calc_fluxes_no_scattering_lw_b, omphook_calc_lw_derivatives_ica, &
 & omphook_modify_lw_derivatives_ica, omphook_generate_column_exp_exp, &
-& omphook_calc_lw_derivatives_ica_lr           
+& omphook_calc_lw_derivatives_ica_lr, omphook_marker1, omphook_marker2, omphook_marker3           
 
     real(jprb), dimension(istartcol:iendcol, nlev, config%n_g_lw) :: &
     &  od
@@ -1294,6 +1294,9 @@ call omptimer_mark('calc_fluxes_no_scattering_lw_b',1, &
 
       end if
 
+      call omptimer_mark('marker3',0, &
+      &   omphook_marker3)
+      
       flux_up_clear_sum(:,:) = flux_up_clear_sum(:,:) + flux_up_clear(:,:)
       flux_dn_clear_sum(:,:) = flux_dn_clear_sum(:,:) + flux_dn_clear(:,:)
 
@@ -1329,11 +1332,17 @@ call omptimer_mark('calc_fluxes_no_scattering_lw_b',1, &
         flux%lw_dn_surf_g(jg,jcol) = total_cloud_cover(jcol)*flux_dn(jcol,nlev+1) &
               &  + (1.0_jprb - total_cloud_cover(jcol))*flux%lw_dn_surf_clear_g(jg,jcol)
       enddo
+      call omptimer_mark('marker3',1, &
+      &   omphook_marker3)
+      
     enddo
 
     ! cos: here there are reductions on ng. Therefore we need to break the ng loop,
     ! and the storages can only be ng independent if the accumulation is performed in previous loops
 
+    call omptimer_mark('marker2',0, &
+    &   omphook_marker2)
+    
         ! cos: array syntax once data layouts are compatible
     do jcol = istartcol,iendcol
 
@@ -1342,7 +1351,14 @@ call omptimer_mark('calc_fluxes_no_scattering_lw_b',1, &
       flux%lw_dn_clear(jcol,:) = flux_dn_clear_sum(jcol,:)
     enddo
 
+    call omptimer_mark('marker2',1, &
+    &   omphook_marker2)
+    
     do idx = 1,cloud_cover_idx_length
+
+     call omptimer_mark('marker1',0, &
+     &   omphook_marker1)
+     
       jcol = cloud_cover_idx(idx)
         
       ! Store overcast broadband fluxes
@@ -1355,6 +1371,9 @@ call omptimer_mark('calc_fluxes_no_scattering_lw_b',1, &
             &  + (1.0_jprb - total_cloud_cover(jcol))*flux%lw_up_clear(jcol,:)
       flux%lw_dn(jcol,:) =  total_cloud_cover(jcol) *flux%lw_dn(jcol,:) &
             &  + (1.0_jprb - total_cloud_cover(jcol))*flux%lw_dn_clear(jcol,:)
+
+            call omptimer_mark('marker1',1, &
+&   omphook_marker1)
 
       ! Compute the longwave derivatives needed by Hogan and Bozzo
       ! (2015) approximate radiation update scheme
