@@ -7,6 +7,8 @@ file(MAKE_DIRECTORY ${CI_TESTS_RUNTIME_DIR})
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config.py.template
                ${CI_TESTS_RUNTIME_DIR}/config.py)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/tests_runner.py ${CI_TESTS_RUNTIME_DIR}/tests_runner.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/combine_block_len_test_results.py ${CI_TESTS_RUNTIME_DIR}/combine_block_len_test_results.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/plot_block_len_test_results.py ${CI_TESTS_RUNTIME_DIR}/plot_block_len_test_results.py COPYONLY)
 
 add_custom_target(update-cpu-reg-test-format)
 add_dependencies(update-test-report-formats update-cpu-reg-test-format)
