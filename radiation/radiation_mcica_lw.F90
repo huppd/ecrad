@@ -455,7 +455,8 @@ end subroutine generate_column_exp_exp_lr
 & omphook_calc_no_scattering_transmittance_lw_b, &
 & omphook_adding_ica_lw_b, omphook_fast_adding_ica_lw, &
 & omphook_calc_fluxes_no_scattering_lw_b, omphook_calc_lw_derivatives_ica, &
-& omphook_modify_lw_derivatives_ica, omphook_generate_column_exp_exp           
+& omphook_modify_lw_derivatives_ica, omphook_generate_column_exp_exp, &
+& omphook_calc_lw_derivatives_ica_lr           
 
     real(jprb), dimension(istartcol:iendcol, nlev, config%n_g_lw) :: &
     &  od
@@ -1384,6 +1385,9 @@ call omptimer_mark('modify_lw_derivatives_ica',1, &
         end if
       end if
     enddo
+    call omptimer_mark('calc_lw_derivatives_ica_lr',0, &
+    &  omphook_calc_lw_derivatives_ica_lr) 
+
     do jcol = istartcol,iendcol
       if (total_cloud_cover(jcol) < config%cloud_fraction_threshold) then
         ! No cloud in profile and clear-sky fluxes already
@@ -1398,6 +1402,9 @@ call omptimer_mark('modify_lw_derivatives_ica',1, &
         end if
       end if ! Cloud is present in profile
     end do
+
+    call omptimer_mark('calc_lw_derivatives_ica_lr',1, &
+&  omphook_calc_lw_derivatives_ica_lr) 
 
     call omptimer_mark('radiation_mcica_lw:solver_mcica_lw',1,omphook_solver_mcica_lw)
 
