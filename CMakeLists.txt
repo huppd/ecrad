@@ -152,7 +152,7 @@ find_package(Python 3.6 REQUIRED)
 
 set(PY_VENV_DIR "${CMAKE_BINARY_DIR}/pyenv")
 
-set(PY_PACKAGES xarray numpy netCDF4 generateDS py-cpuinfo)
+set(PY_PACKAGES xarray numpy netCDF4 generateDS py-cpuinfo matplotlib)
 
 add_custom_target(create-python-virtual-environment ALL)
 add_custom_command(
