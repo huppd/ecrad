@@ -309,21 +309,21 @@ end subroutine generate_column_exp_exp_lr
   ! simultaneously. The cloud generator has been carefully written
   ! such that the stochastic cloud field satisfies the prescribed
   ! overlap parameter accounting for this weighting.
-  subroutine solver_mcica_lw(nlev,istartcol,iendcol, &
+subroutine solver_mcica_lw(nlev,istartcol,iendcol, &
        &  config, single_level, cloud, & 
        &  od_in, ssa_in, g_in, od_cloud_in, ssa_cloud_in, g_cloud_in, planck_hl_in, &
        &  emission_in, albedo_in, &
        &  flux)
 
-    use parkind1, only           : jprb,jprd
-    use yomhook,  only           : lhook, dr_hook
-    use radiation_io,   only           : nulerr, radiation_abort
-    use radiation_config, only         : config_type
-    use radiation_single_level, only   : single_level_type
-    use radiation_cloud, only          : cloud_type
-    use radiation_cloud_cover, only : IOverlapExponential
-    use radiation_flux, only           : flux_type
-    use radiation_two_stream, only     : calc_two_stream_gammas_lw, &
+     use parkind1, only           : jprb,jprd
+     use yomhook,  only           : lhook, dr_hook
+     use radiation_io,   only           : nulerr, radiation_abort
+     use radiation_config, only         : config_type
+     use radiation_single_level, only   : single_level_type
+     use radiation_cloud, only          : cloud_type
+     use radiation_cloud_cover, only : IOverlapExponential
+     use radiation_flux, only           : flux_type
+     use radiation_two_stream, only     : calc_two_stream_gammas_lw, &
          &                               calc_two_stream_gammas_lw_lr, &
          &                               calc_two_stream_gammas_lw_cond_lr, &
          &                               calc_reflectance_transmittance_lw, &
@@ -341,289 +341,289 @@ end subroutine generate_column_exp_exp_lr
 #define exp_fast exp
 #endif
 
-    use radiation_adding_ica_lw, only  : adding_ica_lw_lr, adding_ica_lw_cond_lr, fast_adding_ica_lw, &
-         &                               fast_adding_ica_lw_lr, calc_fluxes_no_scattering_lw, &
-         &                               calc_fluxes_no_scattering_lw_lr, calc_fluxes_no_scattering_lw_cond_lr
-    use radiation_lw_derivatives, only : calc_lw_derivatives_ica, calc_lw_derivatives_ica_lr, &
-    &                                    modify_lw_derivatives_ica, modify_lw_derivatives_ica_lr2
-    use radiation_cloud_generator, only: cloud_generator_lr !, generate_column_exp_ran_lr, generate_column_exp_exp_lr
+     use radiation_adding_ica_lw, only  : adding_ica_lw_lr, adding_ica_lw_cond_lr, fast_adding_ica_lw, &
+          &                               fast_adding_ica_lw_lr, calc_fluxes_no_scattering_lw, &
+          &                               calc_fluxes_no_scattering_lw_lr, calc_fluxes_no_scattering_lw_cond_lr
+     use radiation_lw_derivatives, only : calc_lw_derivatives_ica, calc_lw_derivatives_ica_lr, &
+     &                                    modify_lw_derivatives_ica, modify_lw_derivatives_ica_lr2
+     use radiation_cloud_generator, only: cloud_generator_lr !, generate_column_exp_ran_lr, generate_column_exp_exp_lr
 
-    use random_numbers_mix, only : randomnumberstream
+     use random_numbers_mix, only : randomnumberstream
 
-    implicit none
+     implicit none
 
-    ! Inputs
-    integer, intent(in) :: nlev               ! number of model levels
-    integer, intent(in) :: istartcol, iendcol ! range of columns to process
-    type(config_type),        intent(in) :: config
-    type(single_level_type),  intent(in) :: single_level
-    type(cloud_type),         intent(in) :: cloud
+     ! Inputs
+     integer, intent(in) :: nlev               ! number of model levels
+     integer, intent(in) :: istartcol, iendcol ! range of columns to process
+     type(config_type),        intent(in) :: config
+     type(single_level_type),  intent(in) :: single_level
+     type(cloud_type),         intent(in) :: cloud
 
-    ! Gas and aerosol optical depth, single-scattering albedo and
-    ! asymmetry factor at each longwave g-point
-    real(jprb), intent(in), dimension(config%n_g_lw, nlev, istartcol:iendcol) :: &
-         &  od_in
-    real(jprb), intent(in), dimension(config%n_g_lw_if_scattering, nlev, istartcol:iendcol) :: &
-         &  ssa_in, g_in
+     ! Gas and aerosol optical depth, single-scattering albedo and
+     ! asymmetry factor at each longwave g-point
+     real(jprb), intent(in), dimension(config%n_g_lw, nlev, istartcol:iendcol) :: &
+          &  od_in
+     real(jprb), intent(in), dimension(config%n_g_lw_if_scattering, nlev, istartcol:iendcol) :: &
+          &  ssa_in, g_in
 
-    ! Cloud and precipitation optical depth, single-scattering albedo and
-    ! asymmetry factor in each longwave band
-    real(jprb), intent(in), dimension(config%n_bands_lw,nlev,istartcol:iendcol)   :: &
-         &  od_cloud_in
-    real(jprb), intent(in), dimension(config%n_bands_lw_if_scattering, &
-         &  nlev,istartcol:iendcol) :: ssa_cloud_in, g_cloud_in
+     ! Cloud and precipitation optical depth, single-scattering albedo and
+     ! asymmetry factor in each longwave band
+     real(jprb), intent(in), dimension(config%n_bands_lw,nlev,istartcol:iendcol)   :: &
+          &  od_cloud_in
+     real(jprb), intent(in), dimension(config%n_bands_lw_if_scattering, &
+          &  nlev,istartcol:iendcol) :: ssa_cloud_in, g_cloud_in
 
-    ! Planck function at each half-level and the surface
-    real(jprb), intent(in), dimension(config%n_g_lw,nlev+1,istartcol:iendcol) :: &
-         &  planck_hl_in
+     ! Planck function at each half-level and the surface
+     real(jprb), intent(in), dimension(config%n_g_lw,nlev+1,istartcol:iendcol) :: &
+          &  planck_hl_in
 
-    ! Emission (Planck*emissivity) and albedo (1-emissivity) at the
-    ! surface at each longwave g-point
-    real(jprb), intent(in), dimension(config%n_g_lw, istartcol:iendcol) :: emission_in, albedo_in
+     ! Emission (Planck*emissivity) and albedo (1-emissivity) at the
+     ! surface at each longwave g-point
+     real(jprb), intent(in), dimension(config%n_g_lw, istartcol:iendcol) :: emission_in, albedo_in
 
-    ! Output
-    type(flux_type), intent(inout):: flux
+     ! Output
+     type(flux_type), intent(inout):: flux
 
-    ! Local variables
+     ! Local variables
 
-    ! Diffuse reflectance and transmittance for each layer in clear
-    ! and all skies
-    real(jprb), dimension(istartcol:iendcol, nlev) :: ref_clear, reflectance
-    ! cos: ng can not be demoted because of reductions
-    real(jprb), dimension(istartcol:iendcol,nlev) :: transmittance
+     ! Diffuse reflectance and transmittance for each layer in clear
+     ! and all skies
+     real(jprb), dimension(istartcol:iendcol, nlev) :: ref_clear, reflectance
+     ! cos: ng can not be demoted because of reductions
+     real(jprb), dimension(istartcol:iendcol,nlev) :: transmittance
 
-    real(jprb), dimension(istartcol:iendcol,nlev) :: trans_clear
+     real(jprb), dimension(istartcol:iendcol,nlev) :: trans_clear
 
-    ! Emission by a layer into the upwelling or downwelling diffuse
-    ! streams, in clear and all skies
-    ! cos: ng can not be demoted because of reductions
-    real(jprb), dimension(istartcol:iendcol,nlev) :: source_up_clear, source_up, &
-                                              source_dn_clear, source_dn
+     ! Emission by a layer into the upwelling or downwelling diffuse
+     ! streams, in clear and all skies
+     ! cos: ng can not be demoted because of reductions
+     real(jprb), dimension(istartcol:iendcol,nlev) :: source_up_clear, source_up, &
+                                                  source_dn_clear, source_dn
 
-    ! Fluxes per g point
-    ! cos: ng can not be demoted because of reductions
-    real(jprb), dimension(istartcol:iendcol,nlev+1) :: flux_dn, flux_dn_clear, flux_up, flux_up_clear, &
-    &                   flux_up_clear_sum, flux_up_sum, flux_dn_sum, flux_dn_clear_sum
-    real(jprb), dimension(istartcol:iendcol,nlev) :: flux_up_mul_trans_clear_sum, flux_up_mul_trans_sum
-    real(jprb) :: flux_up_mul_trans_clear_prod, flux_up_mul_trans_prod
+     ! Fluxes per g point
+     ! cos: ng can not be demoted because of reductions
+     real(jprb), dimension(istartcol:iendcol,nlev+1) :: flux_dn, flux_dn_clear, flux_up, flux_up_clear, &
+     &                   flux_up_clear_sum, flux_up_sum, flux_dn_sum, flux_dn_clear_sum
+     real(jprb), dimension(istartcol:iendcol,nlev) :: flux_up_mul_trans_clear_sum, flux_up_mul_trans_sum
+     real(jprb) :: flux_up_mul_trans_clear_prod, flux_up_mul_trans_prod
 
-    ! Combined gas+aerosol+cloud optical depth, single scattering
-    ! albedo and asymmetry factor
-    real(jprb), dimension(istartcol:iendcol) :: ssa_total, od_total, g_total
+     ! Combined gas+aerosol+cloud optical depth, single scattering
+     ! albedo and asymmetry factor
+     real(jprb), dimension(istartcol:iendcol) :: ssa_total, od_total, g_total
 
-    ! Combined scattering optical depth
-    real(jprb) :: scat_od, scat_od_total
+     ! Combined scattering optical depth
+     real(jprb) :: scat_od, scat_od_total
 
-    ! Two-stream coefficients
-    ! cos: could be demoted to scalar if calc_two_stream_gammas_lw_lr and 
-    ! calc_reflectance_transmittance_lw_lr are fused in the same jloop 
-    real(jprb), dimension(istartcol:iendcol) :: gamma1, gamma2 
+     ! Two-stream coefficients
+     ! cos: could be demoted to scalar if calc_two_stream_gammas_lw_lr and 
+     ! calc_reflectance_transmittance_lw_lr are fused in the same jloop 
+     real(jprb), dimension(istartcol:iendcol) :: gamma1, gamma2 
 
-    ! Optical depth scaling from the cloud generator, zero indicating
-    ! clear skies
-    ! cos; (ng) can be demoted, but required moving the last ng loop of cloud_generator out and fuse it
-    real(jprb), dimension(istartcol:iendcol,nlev,config%n_g_lw) :: od_scaling
+     ! Optical depth scaling from the cloud generator, zero indicating
+     ! clear skies
+     ! cos; (ng) can be demoted, but required moving the last ng loop of cloud_generator out and fuse it
+     real(jprb), dimension(istartcol:iendcol,nlev,config%n_g_lw) :: od_scaling
 
-    ! Modified optical depth after McICA scaling to represent cloud
-    ! inhomogeneity
-    ! cos: temporarily added jcol & nlev for loop splitting
-    real(jprb), dimension(istartcol:iendcol) :: od_cloud_new
+     ! Modified optical depth after McICA scaling to represent cloud
+     ! inhomogeneity
+     ! cos: temporarily added jcol & nlev for loop splitting
+     real(jprb), dimension(istartcol:iendcol) :: od_cloud_new
 
-    ! Total cloud cover output from the cloud generator
-    real(jprb), dimension(istartcol:iendcol) :: total_cloud_cover
+     ! Total cloud cover output from the cloud generator
+     real(jprb), dimension(istartcol:iendcol) :: total_cloud_cover
 
-    ! Identify clear-sky layers
-    logical :: is_clear_sky_layer(istartcol:iendcol,nlev)
+     ! Identify clear-sky layers
+     logical :: is_clear_sky_layer(istartcol:iendcol,nlev)
 
-    ! Index of the highest cloudy layer
-    ! cos : temporarily added jcol
-    integer :: i_cloud_top(istartcol:iendcol)
+     ! Index of the highest cloudy layer
+     ! cos : temporarily added jcol
+     integer :: i_cloud_top(istartcol:iendcol)
 
-    real(jprb) :: factor  
-    
-    ! Number of g points
-    integer :: ng
+     real(jprb) :: factor  
+     
+     ! Number of g points
+     integer :: ng
 
-    ! Loop indices for level, column and g point
-    integer :: jlev, jcol, jg
+     ! Loop indices for level, column and g point
+     integer :: jlev, jcol, jg
 
-    real(jprb) :: hook_handle, omphook_solver_mcica_lw, omphook_calc_two_stream_gammas_lw, &
-&  omphook_adding_ica_lw, omphook_calc_no_scattering_transmittance_lw, &
-& omphook_calc_fluxes_no_scattering_lw, omphook_cloud_generator, &
-& omphook_set_scat_od, omphook_calc_two_stream_gammas_lw_b, &
-& omphook_calc_reflectance_transmittance_lw, &
-& omphook_calc_no_scattering_transmittance_lw_b, &
-& omphook_adding_ica_lw_b, omphook_fast_adding_ica_lw, &
-& omphook_calc_fluxes_no_scattering_lw_b, omphook_calc_lw_derivatives_ica, &
-& omphook_modify_lw_derivatives_ica, omphook_generate_column_exp_exp, &
-& omphook_calc_lw_derivatives_ica_lr, omphook_marker1, omphook_marker2, omphook_marker3           
+     real(jprb) :: hook_handle, omphook_solver_mcica_lw, omphook_calc_two_stream_gammas_lw, &
+     &  omphook_adding_ica_lw, omphook_calc_no_scattering_transmittance_lw, &
+     & omphook_calc_fluxes_no_scattering_lw, omphook_cloud_generator, &
+     & omphook_set_scat_od, omphook_calc_two_stream_gammas_lw_b, &
+     & omphook_calc_reflectance_transmittance_lw, &
+     & omphook_calc_no_scattering_transmittance_lw_b, &
+     & omphook_adding_ica_lw_b, omphook_fast_adding_ica_lw, &
+     & omphook_calc_fluxes_no_scattering_lw_b, omphook_calc_lw_derivatives_ica, &
+     & omphook_modify_lw_derivatives_ica, omphook_generate_column_exp_exp, &
+     & omphook_calc_lw_derivatives_ica_lr, omphook_marker1, omphook_marker2, omphook_marker3           
 
-    real(jprb), dimension(istartcol:iendcol, nlev, config%n_g_lw) :: &
-    &  od
+     real(jprb), dimension(istartcol:iendcol, nlev, config%n_g_lw) :: &
+     &  od
 
-    real(jprb), dimension(istartcol:iendcol, nlev, config%n_g_lw_if_scattering) :: &
-    &  ssa, g
+     real(jprb), dimension(istartcol:iendcol, nlev, config%n_g_lw_if_scattering) :: &
+     &  ssa, g
 
-    ! Cloud and precipitation optical depth, single-scattering albedo and
-    ! asymmetry factor in each longwave band
-    real(jprb), dimension(istartcol:iendcol,nlev,config%n_bands_lw)   :: &
-        &  od_cloud
-    real(jprb), dimension(istartcol:iendcol,nlev,config%n_bands_lw_if_scattering) :: ssa_cloud, g_cloud
+     ! Cloud and precipitation optical depth, single-scattering albedo and
+     ! asymmetry factor in each longwave band
+     real(jprb), dimension(istartcol:iendcol,nlev,config%n_bands_lw)   :: &
+          &  od_cloud
+     real(jprb), dimension(istartcol:iendcol,nlev,config%n_bands_lw_if_scattering) :: ssa_cloud, g_cloud
 
-    ! Planck function at each half-level and the surface
-    real(jprb), dimension(istartcol:iendcol,nlev+1,config%n_g_lw) :: &
-        &  planck_hl
+     ! Planck function at each half-level and the surface
+     real(jprb), dimension(istartcol:iendcol,nlev+1,config%n_g_lw) :: &
+          &  planck_hl
 
-    ! Emission (Planck*emissivity) and albedo (1-emissivity) at the
-    ! surface at each longwave g-point
-    real(jprb), dimension(istartcol:iendcol, config%n_g_lw) :: emission, albedo
+     ! Emission (Planck*emissivity) and albedo (1-emissivity) at the
+     ! surface at each longwave g-point
+     real(jprb), dimension(istartcol:iendcol, config%n_g_lw) :: emission, albedo
 
-    ! Scaled random number for finding cloud
-    real(jprb) :: trigger
-    integer :: itrigger
+     ! Scaled random number for finding cloud
+     real(jprb) :: trigger
+     integer :: itrigger
 
      ! Uniform deviates between 0 and 1
-    ! cos: original (ng). Future demote to jcol only
-    real(jprb) :: rand_top(istartcol:iendcol,config%n_g_lw)
+     ! cos: original (ng). Future demote to jcol only
+     real(jprb) :: rand_top(istartcol:iendcol,config%n_g_lw)
 
-    ! First and last cloudy layers
-    ! cos: origina (scalar). Need to remain like that
-    integer :: ibegin(istartcol:iendcol), iend(istartcol:iendcol)
+     ! First and last cloudy layers
+     ! cos: origina (scalar). Need to remain like that
+     integer :: ibegin(istartcol:iendcol), iend(istartcol:iendcol)
 
-    ! Cloud cover of a pair of layers, and amount by which cloud at
-    ! next level increases total cloud cover as seen from above
-    ! cos: original (nlev+1). Future can not be demoted since we move jcol innermost
-    ! we need to retain the independent jcol calculations
-    real(jprb), dimension(istartcol:iendcol, nlev-1) :: pair_cloud_cover, overhang
+     ! Cloud cover of a pair of layers, and amount by which cloud at
+     ! next level increases total cloud cover as seen from above
+     ! cos: original (nlev+1). Future can not be demoted since we move jcol innermost
+     ! we need to retain the independent jcol calculations
+     real(jprb), dimension(istartcol:iendcol, nlev-1) :: pair_cloud_cover, overhang
 
-    ! Cumulative cloud cover from TOA to the base of each layer
-    ! cos: original (lev). Future can not be demoted since we move jcol innermost
-    ! we need to retain the independent jcol calculations
-    real(jprb) :: cum_cloud_cover(istartcol:iendcol,nlev)
+     ! Cumulative cloud cover from TOA to the base of each layer
+     ! cos: original (lev). Future can not be demoted since we move jcol innermost
+     ! we need to retain the independent jcol calculations
+     real(jprb) :: cum_cloud_cover(istartcol:iendcol,nlev)
 
-     ! Overlap parameter of inhomogeneities
-    !cos: original (nlev). Future can not be demoted
-    real(jprb) :: overlap_param_inhom(istartcol:iendcol,nlev-1)
+          ! Overlap parameter of inhomogeneities
+     !cos: original (nlev). Future can not be demoted
+     real(jprb) :: overlap_param_inhom(istartcol:iendcol,nlev-1)
 
-    ! Seed for random number generator and stream for producing random
-    ! numbers
-    !cos: oritinal (scalar)
-    type(randomnumberstream) :: random_stream(istartcol:iendcol)
-
-
- real(jprd) :: coeff, coeff_up_top, coeff_up_bot, coeff_dn_top, coeff_dn_bot                          
- real(jprd) :: k_exponent, reftrans_factor
- real(jprd) :: exponential  ! = exp(-k_exponent*od)
- real(jprd) :: exponential2 ! = exp(-2*k_exponent*od)
-
-! cos: temporaries for fast_adding_ica_lw_lr
-! ---------------------------------------------
-! Albedo of the entire earth/atmosphere system below each half
- ! level
- real(jprb), dimension(istartcol:iendcol,nlev+1) :: albedo_tmp
-
- ! Upwelling radiation at each half-level due to emission below
- ! that half-level (W m-2)
- real(jprb), dimension(istartcol:iendcol,nlev+1) :: source
-
- ! Equal to 1/(1-albedo*reflectance)
- real(jprb), dimension(istartcol:iendcol,nlev)   :: inv_denominator
-! ---------------------------------------------
-
- integer, dimension(iendcol-istartcol+1) :: cloud_cover_idx
- integer :: cloud_cover_idx_length, idx
-
- integer, dimension(iendcol-istartcol+1,nlev) :: cloud_cover_fraction
- integer, dimension(nlev) :: cloud_cover_fraction_length
-
- ! Height indices
- integer :: jcloud
-
- integer :: iy
-
- real(jprb) :: rand_cloud(nlev)
- real(jprb) :: rand_inhom1(nlev), rand_inhom2(nlev)
-
- ! For each column analysed, this vector locates the clouds. It is
- ! only actually used for Exp-Exp overlap
- logical :: is_cloudy(nlev)
-
- ! Number of contiguous cloudy layers for which to compute optical
- ! depth scaling
- integer :: n_layers_to_scale
-
- ! Is it time to fill the od_scaling variable?
- logical :: do_fill_od_scaling
-
-    ng = config%n_g_lw
-
-    write(*,*) "DOMAIN SIZES :", ng, nlev, istartcol,iendcol
-
-    do jcol = istartcol,iendcol
-      do jlev=1,nlev
-        do jg = 1,config%n_g_lw
-          od(jcol,jlev,jg) = od_in(jg,jlev,jcol)
-        enddo
-      enddo
-    enddo
-
-    do jcol = istartcol,iendcol
-      do jlev=1,nlev
-        do jg = 1,config%n_g_lw_if_scattering
-          ssa(jcol,jlev,jg) = ssa_in(jg,jlev,jcol)
-          g(jcol,jlev,jg) = g_in(jg,jlev,jcol)
-        enddo
-      enddo
-    enddo
-
-    do jcol = istartcol,iendcol
-      do jlev=1,nlev
-        do jg = 1,config%n_bands_lw
-          od_cloud(jcol,jlev,jg) = od_cloud_in(jg,jlev,jcol)
-        enddo
-      enddo
-    enddo
-
-    do jcol = istartcol,iendcol
-      do jlev=1,nlev
-        do jg = 1,config%n_bands_lw_if_scattering
-          ssa_cloud(jcol,jlev,jg) = ssa_cloud_in(jg,jlev,jcol)
-          g_cloud(jcol,jlev,jg) = g_cloud_in(jg,jlev,jcol)
-        enddo
-      enddo
-    enddo
-
-    do jcol = istartcol,iendcol
-      do jlev=1,nlev+1
-        do jg = 1,config%n_g_lw
-          planck_hl(jcol,jlev,jg) = planck_hl_in(jg,jlev,jcol)
-        enddo
-      enddo
-    enddo
-
-    do jcol = istartcol,iendcol
-      do jg = 1,config%n_g_lw
-        emission(jcol,jg) = emission_in(jg,jcol)
-        albedo(jcol,jg) = albedo_in(jg,jcol)
-      enddo
-    enddo
-
-    if (lhook) call dr_hook('radiation_mcica_lw:solver_mcica_lw',0,hook_handle)
-    call omptimer_mark('radiation_mcica_lw:solver_mcica_lw',0, &
-&  omphook_solver_mcica_lw)
+     ! Seed for random number generator and stream for producing random
+     ! numbers
+     !cos: oritinal (scalar)
+     type(randomnumberstream) :: random_stream(istartcol:iendcol)
 
 
-    if (.not. config%do_clear) then
-      write(nulerr,'(a)') '*** Error: longwave McICA requires clear-sky calculation to be performed'
-      call radiation_abort()      
-    end if
+     real(jprd) :: coeff, coeff_up_top, coeff_up_bot, coeff_dn_top, coeff_dn_bot                          
+     real(jprd) :: k_exponent, reftrans_factor
+     real(jprd) :: exponential  ! = exp(-k_exponent*od)
+     real(jprd) :: exponential2 ! = exp(-2*k_exponent*od)
+
+     ! cos: temporaries for fast_adding_ica_lw_lr
+     ! ---------------------------------------------
+     ! Albedo of the entire earth/atmosphere system below each half
+     ! level
+     real(jprb), dimension(istartcol:iendcol,nlev+1) :: albedo_tmp
+
+     ! Upwelling radiation at each half-level due to emission below
+     ! that half-level (W m-2)
+     real(jprb), dimension(istartcol:iendcol,nlev+1) :: source
+
+     ! Equal to 1/(1-albedo*reflectance)
+     real(jprb), dimension(istartcol:iendcol,nlev)   :: inv_denominator
+     ! ---------------------------------------------
+
+     integer, dimension(iendcol-istartcol+1) :: cloud_cover_idx
+     integer :: cloud_cover_idx_length, idx
+
+     integer, dimension(iendcol-istartcol+1,nlev) :: cloud_cover_fraction
+     integer, dimension(nlev) :: cloud_cover_fraction_length
+
+     ! Height indices
+     integer :: jcloud
+
+     integer :: iy
+
+     real(jprb) :: rand_cloud(nlev)
+     real(jprb) :: rand_inhom1(nlev), rand_inhom2(nlev)
+
+     ! For each column analysed, this vector locates the clouds. It is
+     ! only actually used for Exp-Exp overlap
+     logical :: is_cloudy(nlev)
+
+     ! Number of contiguous cloudy layers for which to compute optical
+     ! depth scaling
+     integer :: n_layers_to_scale
+
+     ! Is it time to fill the od_scaling variable?
+     logical :: do_fill_od_scaling
+
+     ng = config%n_g_lw
+
+     write(*,*) "DOMAIN SIZES :", ng, nlev, istartcol,iendcol
+
+     do jcol = istartcol,iendcol
+          do jlev=1,nlev
+          do jg = 1,config%n_g_lw
+               od(jcol,jlev,jg) = od_in(jg,jlev,jcol)
+          enddo
+          enddo
+     enddo
+
+     do jcol = istartcol,iendcol
+          do jlev=1,nlev
+          do jg = 1,config%n_g_lw_if_scattering
+               ssa(jcol,jlev,jg) = ssa_in(jg,jlev,jcol)
+               g(jcol,jlev,jg) = g_in(jg,jlev,jcol)
+          enddo
+          enddo
+     enddo
+
+     do jcol = istartcol,iendcol
+          do jlev=1,nlev
+          do jg = 1,config%n_bands_lw
+               od_cloud(jcol,jlev,jg) = od_cloud_in(jg,jlev,jcol)
+          enddo
+          enddo
+     enddo
+
+     do jcol = istartcol,iendcol
+          do jlev=1,nlev
+          do jg = 1,config%n_bands_lw_if_scattering
+               ssa_cloud(jcol,jlev,jg) = ssa_cloud_in(jg,jlev,jcol)
+               g_cloud(jcol,jlev,jg) = g_cloud_in(jg,jlev,jcol)
+          enddo
+          enddo
+     enddo
+
+     do jcol = istartcol,iendcol
+          do jlev=1,nlev+1
+          do jg = 1,config%n_g_lw
+               planck_hl(jcol,jlev,jg) = planck_hl_in(jg,jlev,jcol)
+          enddo
+          enddo
+     enddo
+
+     do jcol = istartcol,iendcol
+          do jg = 1,config%n_g_lw
+          emission(jcol,jg) = emission_in(jg,jcol)
+          albedo(jcol,jg) = albedo_in(jg,jcol)
+          enddo
+     enddo
+
+     if (lhook) call dr_hook('radiation_mcica_lw:solver_mcica_lw',0,hook_handle)
+     call omptimer_mark('radiation_mcica_lw:solver_mcica_lw',0, &
+     &  omphook_solver_mcica_lw)
+
+
+     if (.not. config%do_clear) then
+          write(nulerr,'(a)') '*** Error: longwave McICA requires clear-sky calculation to be performed'
+          call radiation_abort()      
+     end if
 
 call omptimer_mark('cloud_generator',0, &
 &   omphook_cloud_generator)
 
           ! Do cloudy-sky calculation; add a prime number to the seed in
       ! the longwave
-    call cloud_generator_lr(ng, istartcol, iendcol, nlev, config%i_overlap_scheme, &
+     call cloud_generator_lr(ng, istartcol, iendcol, nlev, config%i_overlap_scheme, &
            &  single_level%iseed, &
            &  config%cloud_fraction_threshold, &
            &  cloud%fraction, cloud%overlap_param, &
@@ -638,200 +638,197 @@ call omptimer_mark('cloud_generator',1, &
 &   omphook_cloud_generator)
 
 
-    do jcol = istartcol, iendcol
-      ! Store total cloud cover
-      flux%cloud_cover_lw(jcol) = total_cloud_cover(jcol)      
-    enddo
+     do jcol = istartcol, iendcol
+          ! Store total cloud cover
+          flux%cloud_cover_lw(jcol) = total_cloud_cover(jcol)      
+     enddo
 
-    cloud_cover_idx = 0
+     cloud_cover_idx = 0
 
-    cloud_cover_idx_length = 0
-    do jcol = istartcol,iendcol
-      if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
-        cloud_cover_idx_length = cloud_cover_idx_length + 1
-        cloud_cover_idx(cloud_cover_idx_length) = jcol
-      endif
-    enddo
+     cloud_cover_idx_length = 0
+     do jcol = istartcol,iendcol
+          if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
+          cloud_cover_idx_length = cloud_cover_idx_length + 1
+          cloud_cover_idx(cloud_cover_idx_length) = jcol
+          endif
+     enddo
 
-    cloud_cover_fraction = 0
-    do jlev = 1,nlev
-      cloud_cover_fraction_length(jlev) = 0
-      do jcol = istartcol,iendcol
-        if ( (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) .and. &
-&          (cloud%fraction(jcol,jlev) >= config%cloud_fraction_threshold)) then
-            cloud_cover_fraction_length(jlev) = cloud_cover_fraction_length(jlev)+1
-            cloud_cover_fraction(cloud_cover_fraction_length(jlev), jlev) = jcol
-        endif
-      enddo
-    enddo
+     cloud_cover_fraction = 0
+     do jlev = 1,nlev
+          cloud_cover_fraction_length(jlev) = 0
+          do jcol = istartcol,iendcol
+          if ( (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) .and. &
+     &          (cloud%fraction(jcol,jlev) >= config%cloud_fraction_threshold)) then
+               cloud_cover_fraction_length(jlev) = cloud_cover_fraction_length(jlev)+1
+               cloud_cover_fraction(cloud_cover_fraction_length(jlev), jlev) = jcol
+          endif
+          enddo
+     enddo
 
-    do idx = 1, cloud_cover_idx_length
-      jcol = cloud_cover_idx(idx)
-        ! Reset optical depth scaling to clear skies
-        od_scaling(jcol,:,:) = 0.0_jprb
+     do idx = 1, cloud_cover_idx_length
+          jcol = cloud_cover_idx(idx)
+          ! Reset optical depth scaling to clear skies
+          od_scaling(jcol,:,:) = 0.0_jprb
 
-        is_clear_sky_layer(jcol,:) = .true.
-        i_cloud_top(jcol) = nlev+1
-    enddo
+          is_clear_sky_layer(jcol,:) = .true.
+          i_cloud_top(jcol) = nlev+1
+     enddo
 
-    do jlev = 1,nlev
-      do idx = 1, cloud_cover_fraction_length(jlev)
-        jcol = cloud_cover_fraction(idx,jlev)
-        is_clear_sky_layer(jcol,jlev) = .false.
-        ! Get index to the first cloudy layer from the top
-        if (i_cloud_top(jcol) > jlev) then
-          i_cloud_top(jcol) = jlev
-        endif
-      enddo
-    enddo
-      
-    flux_up_clear_sum(:,:) = 0.0
-    flux_dn_clear_sum(:,:) = 0.0
+     do jlev = 1,nlev
+          do idx = 1, cloud_cover_fraction_length(jlev)
+          jcol = cloud_cover_fraction(idx,jlev)
+          is_clear_sky_layer(jcol,jlev) = .false.
+          ! Get index to the first cloudy layer from the top
+          if (i_cloud_top(jcol) > jlev) then
+               i_cloud_top(jcol) = jlev
+          endif
+          enddo
+     enddo
+          
+     flux_up_clear_sum(:,:) = 0.0
+     flux_dn_clear_sum(:,:) = 0.0
 
-    flux_up_sum(:,:) = 0.0
-    flux_dn_sum(:,:) = 0.0
+     flux_up_sum(:,:) = 0.0
+     flux_dn_sum(:,:) = 0.0
 
-    flux_up_mul_trans_clear_sum(:,:) = 0.0
-    flux_up_mul_trans_sum(:,:) = 0.0
+     flux_up_mul_trans_clear_sum(:,:) = 0.0
+     flux_up_mul_trans_sum(:,:) = 0.0
 
-    do jg = 1,ng
-    call omptimer_mark('generate_column_exp_exp',0,omphook_generate_column_exp_exp)
-call omptimer_mark('cloud_generator',0, &
-&   omphook_cloud_generator)
+     do jg = 1,ng
+          call omptimer_mark('generate_column_exp_exp',0,omphook_generate_column_exp_exp)
+          call omptimer_mark('cloud_generator',0, &
+          &   omphook_cloud_generator)
 
-      do idx = 1, cloud_cover_idx_length
-        jcol = cloud_cover_idx(idx)
-        ! Loop over ng columns
-          ! cos: the random num generation was before out of the innermost loop. 
-          ! With the reordering had to be brought inside. We would need to refactor 
-          ! the random number generation subroutines to recover performance
+          do idx = 1, cloud_cover_idx_length
+               jcol = cloud_cover_idx(idx)
+               ! Loop over ng columns
+               ! cos: the random num generation was before out of the innermost loop. 
+               ! With the reordering had to be brought inside. We would need to refactor 
+               ! the random number generation subroutines to recover performance
 
-          ! Find the cloud top height corresponding to the current
-          ! random number, and store in itrigger
-          trigger = rand_top(jcol,jg) * total_cloud_cover(jcol)
-          jlev = ibegin(jcol)
-          do while (trigger > cum_cloud_cover(jcol,jlev) .and. jlev < iend(jcol))
-            jlev = jlev + 1
+               ! Find the cloud top height corresponding to the current
+               ! random number, and store in itrigger
+               trigger = rand_top(jcol,jg) * total_cloud_cover(jcol)
+               jlev = ibegin(jcol)
+               do while (trigger > cum_cloud_cover(jcol,jlev) .and. jlev < iend(jcol))
+                    jlev = jlev + 1
+               end do
+               itrigger = jlev
+
+               if (config%i_overlap_scheme /= IOverlapExponential) then
+     ! cos: inline of generate_column_exp_ran_lr
+     !            call generate_column_exp_ran_lr(ng, nlev, jg, random_stream(jcol), config%pdf_sampler, &
+     !                &  cloud%fraction(jcol,:), pair_cloud_cover(jcol,:), &
+     !                &  cum_cloud_cover(jcol,:), overhang(jcol,:), cloud%fractional_std(jcol,:), overlap_param_inhom(jcol,:), &
+     !                &  itrigger, iend(jcol), od_scaling(jcol,:,:))
+
+                    ! So far our vertically contiguous cloud contains only one layer
+                    n_layers_to_scale = 1
+                    iy = 0
+
+                    ! Locate the clouds below this layer: first generate some more
+                    ! random numbers
+                    call uniform_distribution(rand_cloud(1:(iend(jcol)+1-itrigger)),random_stream(jcol))
+
+                    ! Loop from the layer below the local cloud top down to the
+                    ! bottom-most cloudy layer
+                    do jlev = itrigger+1,iend(jcol)+1
+                         do_fill_od_scaling = .false.
+                         if (jlev <= iend(jcol)) then
+                              iy = iy+1
+                              if (n_layers_to_scale > 0) then
+                                   ! There is a cloud above, in which case the probability
+                                   ! of cloud in the layer below is as follows
+                                   if (rand_cloud(iy)*cloud%fraction(jcol,jlev-1) &
+                                        &  < cloud%fraction(jcol,jlev) + cloud%fraction(jcol,jlev-1) - pair_cloud_cover(jcol,jlev-1)) then
+                                        ! Add another cloudy layer
+                                        n_layers_to_scale = n_layers_to_scale + 1
+                                   else 
+                                        ! Reached the end of a contiguous set of cloudy layers and
+                                        ! will compute the optical depth scaling immediately.
+                                        do_fill_od_scaling = .true.
+                                   end if
+                              else
+                                   ! There is clear-sky above, in which case the
+                                   ! probability of cloud in the layer below is as follows
+                                   if (rand_cloud(iy)*(cum_cloud_cover(jcol,jlev-1) - cloud%fraction(jcol,jlev-1)) &
+                                        &  < pair_cloud_cover(jcol,jlev-1) - overhang(jcol,jlev-1) - cloud%fraction(jcol,jlev-1)) then
+                                        ! A new cloud top
+                                        n_layers_to_scale = 1
+                                   end if
+                              end if
+                         else
+                              ! We are at the bottom of the cloudy layers in the model,
+                              ! so in a moment need to populate the od_scaling array
+                              do_fill_od_scaling = .true.
+                         end if
+
+                         if (do_fill_od_scaling) then
+                              ! We have a contiguous range of layers for which we
+                              ! compute the od_scaling elements using some random
+                              ! numbers
+                              call uniform_distribution(rand_inhom1(1:n_layers_to_scale),random_stream(jcol))
+                              call uniform_distribution(rand_inhom2(1:n_layers_to_scale),random_stream(jcol))
+
+                              ! Loop through the sequence of cloudy layers
+                              do jcloud = 2,n_layers_to_scale
+                                   ! Use second random number, and inhomogeneity overlap
+                                   ! parameter, to decide whether the first random number
+                                   ! should be repeated (corresponding to maximum overlap)
+                                   ! or not (corresponding to random overlap)
+                                   if (rand_inhom2(jcloud) &
+                                        &  < overlap_param_inhom(jcol,jlev-n_layers_to_scale+jcloud-2)) then
+                                   rand_inhom1(jcloud) = rand_inhom1(jcloud-1)
+                                   end if
+                              end do
+                              
+                              ! Sample from a lognormal or gamma distribution to obtain
+                              ! the optical depth scalings
+                              call config%pdf_sampler%sample(cloud%fractional_std(jcol,jlev-n_layers_to_scale:jlev-1), &
+                                   & rand_inhom1(1:n_layers_to_scale), od_scaling(jcol,jlev-n_layers_to_scale:jlev-1,jg))
+
+                              n_layers_to_scale = 0
+                         end if
+                    end do
+
+          ! cos: END inline of generate_column_exp_ran_lr
+
+               else
+                    call generate_column_exp_exp_lr(ng, nlev, jg, random_stream(jcol), config%pdf_sampler, &
+                         &  cloud%fraction(jcol,:), pair_cloud_cover(jcol,:), &
+                         &  cum_cloud_cover(jcol,:), overhang(jcol,:), cloud%fractional_std(jcol,:), overlap_param_inhom(jcol,:), &
+                         &  itrigger, iend(jcol), od_scaling(jcol,:,:))
+               end if      
           end do
-          itrigger = jlev
-
-          if (config%i_overlap_scheme /= IOverlapExponential) then
-! cos: inline of generate_column_exp_ran_lr
-!            call generate_column_exp_ran_lr(ng, nlev, jg, random_stream(jcol), config%pdf_sampler, &
-!                &  cloud%fraction(jcol,:), pair_cloud_cover(jcol,:), &
-!                &  cum_cloud_cover(jcol,:), overhang(jcol,:), cloud%fractional_std(jcol,:), overlap_param_inhom(jcol,:), &
-!                &  itrigger, iend(jcol), od_scaling(jcol,:,:))
-
- ! So far our vertically contiguous cloud contains only one layer
- n_layers_to_scale = 1
- iy = 0
-
- ! Locate the clouds below this layer: first generate some more
- ! random numbers
- call uniform_distribution(rand_cloud(1:(iend(jcol)+1-itrigger)),random_stream(jcol))
-
- ! Loop from the layer below the local cloud top down to the
- ! bottom-most cloudy layer
- do jlev = itrigger+1,iend(jcol)+1
-   do_fill_od_scaling = .false.
-   if (jlev <= iend(jcol)) then
-     iy = iy+1
-     if (n_layers_to_scale > 0) then
-       ! There is a cloud above, in which case the probability
-       ! of cloud in the layer below is as follows
-       if (rand_cloud(iy)*cloud%fraction(jcol,jlev-1) &
-            &  < cloud%fraction(jcol,jlev) + cloud%fraction(jcol,jlev-1) - pair_cloud_cover(jcol,jlev-1)) then
-         ! Add another cloudy layer
-         n_layers_to_scale = n_layers_to_scale + 1
-       else 
-         ! Reached the end of a contiguous set of cloudy layers and
-         ! will compute the optical depth scaling immediately.
-         do_fill_od_scaling = .true.
-       end if
-     else
-       ! There is clear-sky above, in which case the
-       ! probability of cloud in the layer below is as follows
-       if (rand_cloud(iy)*(cum_cloud_cover(jcol,jlev-1) - cloud%fraction(jcol,jlev-1)) &
-            &  < pair_cloud_cover(jcol,jlev-1) - overhang(jcol,jlev-1) - cloud%fraction(jcol,jlev-1)) then
-         ! A new cloud top
-         n_layers_to_scale = 1
-       end if
-     end if
-   else
-     ! We are at the bottom of the cloudy layers in the model,
-     ! so in a moment need to populate the od_scaling array
-     do_fill_od_scaling = .true.
-   end if
-
-   if (do_fill_od_scaling) then
-     ! We have a contiguous range of layers for which we
-     ! compute the od_scaling elements using some random
-     ! numbers
-     call uniform_distribution(rand_inhom1(1:n_layers_to_scale),random_stream(jcol))
-     call uniform_distribution(rand_inhom2(1:n_layers_to_scale),random_stream(jcol))
-
-     ! Loop through the sequence of cloudy layers
-     do jcloud = 2,n_layers_to_scale
-       ! Use second random number, and inhomogeneity overlap
-       ! parameter, to decide whether the first random number
-       ! should be repeated (corresponding to maximum overlap)
-       ! or not (corresponding to random overlap)
-       if (rand_inhom2(jcloud) &
-            &  < overlap_param_inhom(jcol,jlev-n_layers_to_scale+jcloud-2)) then
-         rand_inhom1(jcloud) = rand_inhom1(jcloud-1)
-       end if
-     end do
-     
-     ! Sample from a lognormal or gamma distribution to obtain
-     ! the optical depth scalings
-     call config%pdf_sampler%sample(cloud%fractional_std(jcol,jlev-n_layers_to_scale:jlev-1), &
-          & rand_inhom1(1:n_layers_to_scale), od_scaling(jcol,jlev-n_layers_to_scale:jlev-1,jg))
-
-     n_layers_to_scale = 0
-   end if
-       
- end do
-
-! cos: END inline of generate_column_exp_ran_lr
+          call omptimer_mark('generate_column_exp_exp',1,omphook_generate_column_exp_exp)
+          call omptimer_mark('cloud_generator',1, &
+               &   omphook_cloud_generator)
 
 
-
-          else
-            call generate_column_exp_exp_lr(ng, nlev, jg, random_stream(jcol), config%pdf_sampler, &
-                &  cloud%fraction(jcol,:), pair_cloud_cover(jcol,:), &
-                &  cum_cloud_cover(jcol,:), overhang(jcol,:), cloud%fractional_std(jcol,:), overlap_param_inhom(jcol,:), &
-                &  itrigger, iend(jcol), od_scaling(jcol,:,:))
-          end if      
-      end do
-    call omptimer_mark('generate_column_exp_exp',1,omphook_generate_column_exp_exp)
-call omptimer_mark('cloud_generator',1, &
-&   omphook_cloud_generator)
-
-
-      ! Clear-sky calculation
-      if (config%do_lw_aerosol_scattering) then
-        ! Scattering case: first compute clear-sky reflectance,
-        ! transmittance etc at each model level
-call omptimer_mark('calc_two_stream_gammas_lw',0, &
-&  omphook_calc_two_stream_gammas_lw) 
-        do jlev = 1,nlev
-          ssa_total = ssa(:,jlev,jg)
-          g_total   = g(:,jlev,jg)
+          ! Clear-sky calculation
+          if (config%do_lw_aerosol_scattering) then
+               ! Scattering case: first compute clear-sky reflectance,
+               ! transmittance etc at each model level
+               call omptimer_mark('calc_two_stream_gammas_lw',0, &
+               &  omphook_calc_two_stream_gammas_lw) 
+               do jlev = 1,nlev
+                    ssa_total = ssa(:,jlev,jg)
+                    g_total   = g(:,jlev,jg)
 ! cos: inline of calc_two_stream_gammas_lw_lr
 !          call calc_two_stream_gammas_lw_lr(istartcol, iendcol, ssa_total(:), g_total, &
 !               &  gamma1, gamma2)
 
- do jcol = istartcol,iendcol
-   ! Fu et al. (1997), Eq 2.9 and 2.10:
-   !      gamma1(jg) = LwDiffusivity * (1.0_jprb - 0.5_jprb*ssa(jg) &
-   !           &                    * (1.0_jprb + g(jg)))
-   !      gamma2(jg) = LwDiffusivity * 0.5_jprb * ssa(jg) &
-   !           &                    * (1.0_jprb - g(jg))
-   ! Reduce number of multiplications
-   factor = (LwDiffusivity * 0.5_jprb) * ssa_total(jcol)
-   gamma1(jcol) = LwDiffusivity - factor*(1.0_jprb + g_total(jcol))
-   gamma2(jcol) = factor * (1.0_jprb - g_total(jcol))
- end do
+                    do jcol = istartcol,iendcol
+                         ! Fu et al. (1997), Eq 2.9 and 2.10:
+                         !      gamma1(jg) = LwDiffusivity * (1.0_jprb - 0.5_jprb*ssa(jg) &
+                         !           &                    * (1.0_jprb + g(jg)))
+                         !      gamma2(jg) = LwDiffusivity * 0.5_jprb * ssa(jg) &
+                         !           &                    * (1.0_jprb - g(jg))
+                         ! Reduce number of multiplications
+                         factor = (LwDiffusivity * 0.5_jprb) * ssa_total(jcol)
+                         gamma1(jcol) = LwDiffusivity - factor*(1.0_jprb + g_total(jcol))
+                         gamma2(jcol) = factor * (1.0_jprb - g_total(jcol))
+                    end do
 ! cos: END inline of calc_two_stream_gammas_lw_lr
 
 ! cos: inline of calc_reflectance_transmittance_lw_lr
@@ -841,102 +838,100 @@ call omptimer_mark('calc_two_stream_gammas_lw',0, &
 !               &  ref_clear(:,jlev), trans_clear(:,jlev), &
 !               &  source_up_clear(:,jlev), source_dn_clear(:,jlev))
 
- do jcol = istartcol,iendcol
-   if (od(jcol,jlev,jg) > 1.0e-3_jprd) then
-     k_exponent = sqrt(max((gamma1(jcol) - gamma2(jcol)) * (gamma1(jcol) + gamma2(jcol)), &
-          1.E-12_jprd)) ! Eq 18 of Meador & Weaver (1980)
-     exponential = exp_fast(-k_exponent*od(jcol,jlev,jg))
-     exponential2 = exponential*exponential
-     reftrans_factor = 1.0 / (k_exponent + gamma1(jcol) + (k_exponent - gamma1(jcol))*exponential2)
-     ! Meador & Weaver (1980) Eq. 25
-     ref_clear(jcol,jlev) = gamma2(jcol) * (1.0_jprd - exponential2) * reftrans_factor
-     ! Meador & Weaver (1980) Eq. 26
-     trans_clear(jcol,jlev) = 2.0_jprd * k_exponent * exponential * reftrans_factor
-   
-     ! Compute upward and downward emission assuming the Planck
-     ! function to vary linearly with optical depth within the layer
-     ! (e.g. Wiscombe , JQSRT 1976).
+                    do jcol = istartcol,iendcol
+                         if (od(jcol,jlev,jg) > 1.0e-3_jprd) then
+                              k_exponent = sqrt(max((gamma1(jcol) - gamma2(jcol)) * (gamma1(jcol) + gamma2(jcol)), &
+                                   1.E-12_jprd)) ! Eq 18 of Meador & Weaver (1980)
+                              exponential = exp_fast(-k_exponent*od(jcol,jlev,jg))
+                              exponential2 = exponential*exponential
+                              reftrans_factor = 1.0 / (k_exponent + gamma1(jcol) + (k_exponent - gamma1(jcol))*exponential2)
+                              ! Meador & Weaver (1980) Eq. 25
+                              ref_clear(jcol,jlev) = gamma2(jcol) * (1.0_jprd - exponential2) * reftrans_factor
+                              ! Meador & Weaver (1980) Eq. 26
+                              trans_clear(jcol,jlev) = 2.0_jprd * k_exponent * exponential * reftrans_factor
+                         
+                              ! Compute upward and downward emission assuming the Planck
+                              ! function to vary linearly with optical depth within the layer
+                              ! (e.g. Wiscombe , JQSRT 1976).
 
-     ! Stackhouse and Stephens (JAS 1991) Eqs 5 & 12
-     coeff = (planck_hl(jcol,jlev+1,jg)-planck_hl(jcol,jlev,jg)) / (od(jcol,jlev,jg)*(gamma1(jcol)+gamma2(jcol)))
-     coeff_up_top  =  coeff + planck_hl(jcol,jlev,jg)
-     coeff_up_bot  =  coeff + planck_hl(jcol,jlev+1,jg)
-     coeff_dn_top  = -coeff + planck_hl(jcol,jlev,jg)
-     coeff_dn_bot  = -coeff + planck_hl(jcol,jlev+1,jg)
-     source_up_clear(jcol,jlev) =  coeff_up_top - ref_clear(jcol,jlev) * coeff_dn_top - trans_clear(jcol,jlev) * coeff_up_bot
-     source_dn_clear(jcol,jlev) =  coeff_dn_bot - ref_clear(jcol,jlev) * coeff_up_bot - trans_clear(jcol,jlev) * coeff_dn_top
-   else
-     k_exponent = sqrt(max((gamma1(jcol) - gamma2(jcol)) * (gamma1(jcol) + gamma2(jcol)), &
-          1.E-12_jprd)) ! Eq 18 of Meador & Weaver (1980)
-     ref_clear(jcol,jlev) = gamma2(jcol) * od(jcol,jlev,jg)
-     trans_clear(jcol,jlev) = (1.0_jprb - k_exponent*od(jcol,jlev,jg)) / (1.0_jprb + od(jcol,jlev,jg)*(gamma1(jcol)-k_exponent))
-     source_up_clear(jcol,jlev) = (1.0_jprb - ref_clear(jcol,jlev) - trans_clear(jcol,jlev)) &
-          &       * 0.5 * (planck_hl(jcol,jlev,jg) + planck_hl(jcol,jlev+1,jg))
-     source_dn_clear(jcol,jlev) = source_up_clear(jcol,jlev)
-   end if
- end do
+                              ! Stackhouse and Stephens (JAS 1991) Eqs 5 & 12
+                              coeff = (planck_hl(jcol,jlev+1,jg)-planck_hl(jcol,jlev,jg)) / (od(jcol,jlev,jg)*(gamma1(jcol)+gamma2(jcol)))
+                              coeff_up_top  =  coeff + planck_hl(jcol,jlev,jg)
+                              coeff_up_bot  =  coeff + planck_hl(jcol,jlev+1,jg)
+                              coeff_dn_top  = -coeff + planck_hl(jcol,jlev,jg)
+                              coeff_dn_bot  = -coeff + planck_hl(jcol,jlev+1,jg)
+                              source_up_clear(jcol,jlev) =  coeff_up_top - ref_clear(jcol,jlev) * coeff_dn_top - trans_clear(jcol,jlev) * coeff_up_bot
+                              source_dn_clear(jcol,jlev) =  coeff_dn_bot - ref_clear(jcol,jlev) * coeff_up_bot - trans_clear(jcol,jlev) * coeff_dn_top
+                         else
+                              k_exponent = sqrt(max((gamma1(jcol) - gamma2(jcol)) * (gamma1(jcol) + gamma2(jcol)), &
+                                   1.E-12_jprd)) ! Eq 18 of Meador & Weaver (1980)
+                              ref_clear(jcol,jlev) = gamma2(jcol) * od(jcol,jlev,jg)
+                              trans_clear(jcol,jlev) = (1.0_jprb - k_exponent*od(jcol,jlev,jg)) / (1.0_jprb + od(jcol,jlev,jg)*(gamma1(jcol)-k_exponent))
+                              source_up_clear(jcol,jlev) = (1.0_jprb - ref_clear(jcol,jlev) - trans_clear(jcol,jlev)) &
+                                   &       * 0.5 * (planck_hl(jcol,jlev,jg) + planck_hl(jcol,jlev+1,jg))
+                              source_dn_clear(jcol,jlev) = source_up_clear(jcol,jlev)
+                         end if
+                    end do
  ! cos: END inline of calc_reflectance_transmittance_lw_lr
+               end do
+               call omptimer_mark('calc_two_stream_gammas_lw',1, &
+               &  omphook_calc_two_stream_gammas_lw) 
 
-        end do
-call omptimer_mark('calc_two_stream_gammas_lw',1, &
-&  omphook_calc_two_stream_gammas_lw) 
+               call omptimer_mark('adding_ica_lw',0, &
+               &   omphook_adding_ica_lw) 
 
-call omptimer_mark('adding_ica_lw',0, &
-&   omphook_adding_ica_lw) 
+               ! Then use adding method to compute fluxes
+               call adding_ica_lw_lr(istartcol, iendcol, nlev, &
+                    &  ref_clear, trans_clear(:,:), source_up_clear, source_dn_clear, &
+                    &  emission(:,jg), albedo(:,jg), &
+                    &  flux_up_clear(:,:), flux_dn_clear(:,:))
 
-        ! Then use adding method to compute fluxes
-        call adding_ica_lw_lr(istartcol, iendcol, nlev, &
-             &  ref_clear, trans_clear(:,:), source_up_clear, source_dn_clear, &
-             &  emission(:,jg), albedo(:,jg), &
-             &  flux_up_clear(:,:), flux_dn_clear(:,:))
+               call omptimer_mark('adding_ica_lw',1, &
+               &   omphook_adding_ica_lw)         
 
-call omptimer_mark('adding_ica_lw',1, &
-&   omphook_adding_ica_lw)         
+          else
 
-      else
+          call omptimer_mark('calc_no_scattering_transmittance_lw',0, &
+          &   omphook_calc_no_scattering_transmittance_lw)
 
-call omptimer_mark('calc_no_scattering_transmittance_lw',0, &
-&   omphook_calc_no_scattering_transmittance_lw)
-
-        ! ! Non-scattering case: use simpler functions for
-        ! ! transmission and emission
-        do jlev = 1,nlev
+          ! ! Non-scattering case: use simpler functions for
+          ! ! transmission and emission
+          do jlev = 1,nlev
 ! cos: inline of calc_no_scattering_transmittance_lw_lr
 !          call calc_no_scattering_transmittance_lw_lr(istartcol, iendcol, od(:,jlev,jg), &
 !               &  planck_hl(:,jlev,jg), planck_hl(:,jlev+1,jg), &
 !               &  trans_clear(:,jlev), source_up_clear(:,jlev), source_dn_clear(:,jlev))
- do jcol = istartcol,iendcol  
-  ! Compute upward and downward emission assuming the Planck
-  ! function to vary linearly with optical depth within the layer
-  ! (e.g. Wiscombe , JQSRT 1976).
-  if (od(jcol,jlev,jg) > 1.0e-3) then
-    ! Simplified from calc_reflectance_transmittance_lw above
-    coeff = LwDiffusivity*od(jcol,jlev,jg)
-    trans_clear(jcol,jlev) = exp_fast(-coeff)
-    coeff = (planck_hl(jcol,jlev+1,jg)-planck_hl(jcol,jlev,jg)) / coeff
-    coeff_up_top  =  coeff + planck_hl(jcol,jlev,jg)
-    coeff_up_bot  =  coeff + planck_hl(jcol,jlev+1,jg)
-    coeff_dn_top  = -coeff + planck_hl(jcol,jlev,jg)
-    coeff_dn_bot  = -coeff + planck_hl(jcol,jlev+1,jg)
-    source_up_clear(jcol,jlev) =  coeff_up_top - trans_clear(jcol,jlev) * coeff_up_bot
-    source_dn_clear(jcol,jlev) =  coeff_dn_bot - trans_clear(jcol,jlev) * coeff_dn_top
-  else
-    ! Linear limit at low optical depth
-    coeff = LwDiffusivity*od(jcol,jlev,jg)
-    trans_clear(jcol,jlev) = 1.0_jprb - coeff
-    source_up_clear(jcol,jlev) = coeff * 0.5_jprb * (planck_hl(jcol,jlev,jg)+planck_hl(jcol,jlev+1,jg))
-    source_dn_clear(jcol,jlev) = source_up_clear(jcol,jlev)
-  end if
- end do
+               do jcol = istartcol,iendcol  
+               ! Compute upward and downward emission assuming the Planck
+               ! function to vary linearly with optical depth within the layer
+               ! (e.g. Wiscombe , JQSRT 1976).
+               if (od(jcol,jlev,jg) > 1.0e-3) then
+               ! Simplified from calc_reflectance_transmittance_lw above
+               coeff = LwDiffusivity*od(jcol,jlev,jg)
+               trans_clear(jcol,jlev) = exp_fast(-coeff)
+               coeff = (planck_hl(jcol,jlev+1,jg)-planck_hl(jcol,jlev,jg)) / coeff
+               coeff_up_top  =  coeff + planck_hl(jcol,jlev,jg)
+               coeff_up_bot  =  coeff + planck_hl(jcol,jlev+1,jg)
+               coeff_dn_top  = -coeff + planck_hl(jcol,jlev,jg)
+               coeff_dn_bot  = -coeff + planck_hl(jcol,jlev+1,jg)
+               source_up_clear(jcol,jlev) =  coeff_up_top - trans_clear(jcol,jlev) * coeff_up_bot
+               source_dn_clear(jcol,jlev) =  coeff_dn_bot - trans_clear(jcol,jlev) * coeff_dn_top
+               else
+               ! Linear limit at low optical depth
+               coeff = LwDiffusivity*od(jcol,jlev,jg)
+               trans_clear(jcol,jlev) = 1.0_jprb - coeff
+               source_up_clear(jcol,jlev) = coeff * 0.5_jprb * (planck_hl(jcol,jlev,jg)+planck_hl(jcol,jlev+1,jg))
+               source_dn_clear(jcol,jlev) = source_up_clear(jcol,jlev)
+               end if
+               end do
 ! cos: END inline of calc_no_scattering_transmittance_lw_lr
+          end do
 
-        end do
+          call omptimer_mark('calc_no_scattering_transmittance_lw',1, &
+          &   omphook_calc_no_scattering_transmittance_lw)
 
-call omptimer_mark('calc_no_scattering_transmittance_lw',1, &
-&   omphook_calc_no_scattering_transmittance_lw)
-
-call omptimer_mark('calc_fluxes_no_scattering_lw',0, &
-&   omphook_calc_fluxes_no_scattering_lw)
+          call omptimer_mark('calc_fluxes_no_scattering_lw',0, &
+          &   omphook_calc_fluxes_no_scattering_lw)
 
 
 ! cos: inline of calc_fluxes_no_scattering_lw_lr
@@ -945,116 +940,113 @@ call omptimer_mark('calc_fluxes_no_scattering_lw',0, &
 !             &  trans_clear(:,:), source_up_clear, source_dn_clear, &
 !             &  emission(:,jg), albedo(:,jg), &
 !             &  flux_up_clear(:,:), flux_dn_clear(:,:))
- ! At top-of-atmosphere there is no diffuse downwelling radiation
-  flux_dn_clear(:,1) = 0.0_jprb
+          ! At top-of-atmosphere there is no diffuse downwelling radiation
+          flux_dn_clear(:,1) = 0.0_jprb
 
- ! Work down through the atmosphere computing the downward fluxes
- ! at each half-level
- do jlev = 1,nlev
-   flux_dn_clear(:,jlev+1) = trans_clear(:,jlev)*flux_dn_clear(:,jlev) + source_dn_clear(:,jlev)
- end do
+          ! Work down through the atmosphere computing the downward fluxes
+          ! at each half-level
+          do jlev = 1,nlev
+               flux_dn_clear(:,jlev+1) = trans_clear(:,jlev)*flux_dn_clear(:,jlev) + source_dn_clear(:,jlev)
+          end do
 
- ! Surface reflection and emission
- flux_up_clear(:,nlev+1) = emission(:,jg) + albedo(:,jg) * flux_dn_clear(:,nlev+1)
+          ! Surface reflection and emission
+          flux_up_clear(:,nlev+1) = emission(:,jg) + albedo(:,jg) * flux_dn_clear(:,nlev+1)
 
- ! Work back up through the atmosphere computing the upward fluxes
- ! at each half-level
- do jlev = nlev,1,-1
-   flux_up_clear(:,jlev) = trans_clear(:,jlev)*flux_up_clear(:,jlev+1) + source_up_clear(:,jlev)
- end do
+          ! Work back up through the atmosphere computing the upward fluxes
+          ! at each half-level
+          do jlev = nlev,1,-1
+               flux_up_clear(:,jlev) = trans_clear(:,jlev)*flux_up_clear(:,jlev+1) + source_up_clear(:,jlev)
+          end do
 
-        
-call omptimer_mark('calc_fluxes_no_scattering_lw',1, &
-&   omphook_calc_fluxes_no_scattering_lw)
+               
+          call omptimer_mark('calc_fluxes_no_scattering_lw',1, &
+          &   omphook_calc_fluxes_no_scattering_lw)
 
 
 
-        ! Ensure that clear-sky reflectance is zero since it may be
-        ! used in cloudy-sky case
-        ref_clear = 0.0_jprb
-      end if
+          ! Ensure that clear-sky reflectance is zero since it may be
+          ! used in cloudy-sky case
+          ref_clear = 0.0_jprb
+          end if
 
-      do jlev = 1,nlev
-        do idx = 1,cloud_cover_fraction_length(jlev)
-          jcol = cloud_cover_fraction(idx, jlev)
-            od_cloud_new(jcol) = od_scaling(jcol,jlev,jg) &
-                &  * od_cloud(jcol,jlev,config%i_band_from_reordered_g_lw(jg))
-            od_total(jcol) = od(jcol,jlev,jg) + od_cloud_new(jcol)
-            ssa_total(jcol) = 0.0_jprb
-            g_total(jcol)   = 0.0_jprb
-        enddo
+          do jlev = 1,nlev
+               do idx = 1,cloud_cover_fraction_length(jlev)
+                    jcol = cloud_cover_fraction(idx, jlev)
+                    od_cloud_new(jcol) = od_scaling(jcol,jlev,jg) &
+                         &  * od_cloud(jcol,jlev,config%i_band_from_reordered_g_lw(jg))
+                    od_total(jcol) = od(jcol,jlev,jg) + od_cloud_new(jcol)
+                    ssa_total(jcol) = 0.0_jprb
+                    g_total(jcol)   = 0.0_jprb
+               enddo
 
-        if (config%do_lw_cloud_scattering) then
-          ! Scattering case: calculate reflectance and
-          ! transmittance at each model level
+          if (config%do_lw_cloud_scattering) then
+               ! Scattering case: calculate reflectance and
+               ! transmittance at each model level
 
-call omptimer_mark('set_scat_od',0, &
-&   omphook_set_scat_od)
+               call omptimer_mark('set_scat_od',0, &
+               &   omphook_set_scat_od)
 
-            do idx = 1,cloud_cover_fraction_length(jlev)
-              jcol = cloud_cover_fraction(idx, jlev)
+               do idx = 1,cloud_cover_fraction_length(jlev)
+                   jcol = cloud_cover_fraction(idx, jlev)
 
-              if (config%do_lw_aerosol_scattering) then
-                ! In single precision we need to protect against the
-                ! case that od_total > 0.0 and ssa_total > 0.0 but
-                ! od_total*ssa_total == 0 due to underflow
-                scat_od_total = ssa(jcol,jlev,jg)*od(jcol,jlev,jg) &
-                    &     + ssa_cloud(jcol,jlev,config%i_band_from_reordered_g_lw(jg)) &
-                    &     *  od_cloud_new(jcol)
-                if (scat_od_total > 0.0_jprb) then
-                   g_total(jcol) = (g(jg,jlev,jcol)*ssa(jcol,jlev,jg)*od(jcol,jlev,jg) &
-                       &     +   g_cloud(jcol,jlev,config%i_band_from_reordered_g_lw(jg)) &
-                       &     * ssa_cloud(jcol,jlev,config%i_band_from_reordered_g_lw(jg)) &
-                       &     *  od_cloud_new(jcol)) &
-                       &     / scat_od_total
-                endif                
-                if (od_total(jcol) > 0.0_jprb) then
-                   ssa_total(jcol) = scat_od_total / od_total(jcol)
-                endif
-              else
-                  if (od_total(jcol) > 0.0_jprb) then
-                    scat_od = ssa_cloud(jcol,jlev,config%i_band_from_reordered_g_lw(jg)) &
-                        &     * od_cloud_new(jcol)
-                    ssa_total(jcol) = scat_od / od_total(jcol)
-                    if (scat_od > 0.0_jprb) then
-                      g_total(jcol) = g_cloud(jcol,jlev,config%i_band_from_reordered_g_lw(jg)) &
-                          &     * ssa_cloud(jcol,jlev,config%i_band_from_reordered_g_lw(jg)) &
-                          &     *  od_cloud_new(jcol) / scat_od
+                    if (config%do_lw_aerosol_scattering) then
+                         ! In single precision we need to protect against the
+                         ! case that od_total > 0.0 and ssa_total > 0.0 but
+                         ! od_total*ssa_total == 0 due to underflow
+                         scat_od_total = ssa(jcol,jlev,jg)*od(jcol,jlev,jg) &
+                              &     + ssa_cloud(jcol,jlev,config%i_band_from_reordered_g_lw(jg)) &
+                              &     *  od_cloud_new(jcol)
+                         if (scat_od_total > 0.0_jprb) then
+                         g_total(jcol) = (g(jg,jlev,jcol)*ssa(jcol,jlev,jg)*od(jcol,jlev,jg) &
+                              &     +   g_cloud(jcol,jlev,config%i_band_from_reordered_g_lw(jg)) &
+                              &     * ssa_cloud(jcol,jlev,config%i_band_from_reordered_g_lw(jg)) &
+                              &     *  od_cloud_new(jcol)) &
+                              &     / scat_od_total
+                         endif                
+                         if (od_total(jcol) > 0.0_jprb) then
+                         ssa_total(jcol) = scat_od_total / od_total(jcol)
+                         endif
+                    else
+                         if (od_total(jcol) > 0.0_jprb) then
+                              scat_od = ssa_cloud(jcol,jlev,config%i_band_from_reordered_g_lw(jg)) &
+                              &     * od_cloud_new(jcol)
+                              ssa_total(jcol) = scat_od / od_total(jcol)
+                              if (scat_od > 0.0_jprb) then
+                              g_total(jcol) = g_cloud(jcol,jlev,config%i_band_from_reordered_g_lw(jg)) &
+                                   &     * ssa_cloud(jcol,jlev,config%i_band_from_reordered_g_lw(jg)) &
+                                   &     *  od_cloud_new(jcol) / scat_od
+                              end if
+                         end if
+                         !end do
                     end if
-                  end if
-                !end do
-              end if
-          enddo
+               enddo
       
-call omptimer_mark('set_scat_od',1, &
-&   omphook_set_scat_od)
+               call omptimer_mark('set_scat_od',1, &
+               &   omphook_set_scat_od)
 
 
-call omptimer_mark('calc_two_stream_gammas_lw_b',0, &
-&   omphook_calc_two_stream_gammas_lw_b)
+               call omptimer_mark('calc_two_stream_gammas_lw_b',0, &
+               &   omphook_calc_two_stream_gammas_lw_b)
 
-          ! Compute cloudy-sky reflectance, transmittance etc at
-          ! each model level
-! cos: inline of calc_two_stream_gammas_lw_cond_lr
-!          call calc_two_stream_gammas_lw_cond_lr(istartcol, iendcol, total_cloud_cover, cloud%fraction(:,jlev), &
-!                  & config%cloud_fraction_threshold, ssa_total, g_total, gamma1, gamma2)
+               ! Compute cloudy-sky reflectance, transmittance etc at
+               ! each model level
+               ! cos: inline of calc_two_stream_gammas_lw_cond_lr
+               ! call calc_two_stream_gammas_lw_cond_lr(istartcol, iendcol, total_cloud_cover, cloud%fraction(:,jlev), &
+               !                  & config%cloud_fraction_threshold, ssa_total, g_total, gamma1, gamma2)
 
-do idx = 1,cloud_cover_fraction_length(jlev)
-  jcol = cloud_cover_fraction(idx, jlev)
-  
-    ! Fu et al. (1997), Eq 2.9 and 2.10:
-    !      gamma1(jg) = LwDiffusivity * (1.0_jprb - 0.5_jprb*ssa(jg) &
-    !           &                    * (1.0_jprb + g(jg)))
-    !      gamma2(jg) = LwDiffusivity * 0.5_jprb * ssa(jg) &
-    !           &                    * (1.0_jprb - g(jg))
-    ! Reduce number of multiplications
-  factor = (LwDiffusivity * 0.5_jprb) * ssa_total(jcol)
-  gamma1(jcol) = LwDiffusivity - factor*(1.0_jprb + g_total(jcol))
-  gamma2(jcol) = factor * (1.0_jprb - g_total(jcol))
-end do
-
-
-
+               do idx = 1,cloud_cover_fraction_length(jlev)
+                    jcol = cloud_cover_fraction(idx, jlev)
+                    
+                    ! Fu et al. (1997), Eq 2.9 and 2.10:
+                    !      gamma1(jg) = LwDiffusivity * (1.0_jprb - 0.5_jprb*ssa(jg) &
+                    !           &                    * (1.0_jprb + g(jg)))
+                    !      gamma2(jg) = LwDiffusivity * 0.5_jprb * ssa(jg) &
+                    !           &                    * (1.0_jprb - g(jg))
+                    ! Reduce number of multiplications
+                    factor = (LwDiffusivity * 0.5_jprb) * ssa_total(jcol)
+                    gamma1(jcol) = LwDiffusivity - factor*(1.0_jprb + g_total(jcol))
+                    gamma2(jcol) = factor * (1.0_jprb - g_total(jcol))
+               end do
 
 call omptimer_mark('calc_two_stream_gammas_lw_b',1, &
 &   omphook_calc_two_stream_gammas_lw_b)
