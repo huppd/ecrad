@@ -71,8 +71,9 @@ contains
 
     real(jprb) :: hook_handle
 
+#ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_adding_ica_lw:adding_ica_lw',0,hook_handle)
-
+#endif
     albedo(:,nlev+1) = albedo_surf
 
     ! At the surface, the source is thermal emission
@@ -126,8 +127,9 @@ contains
       end do
     end do
 
+#ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_adding_ica_lw:adding_ica_lw',1,hook_handle)
-
+#endif
   end subroutine adding_ica_lw
 
 
@@ -186,8 +188,9 @@ contains
 
     real(jprb) :: hook_handle
 
+#ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_adding_ica_lw:fast_adding_ica_lw',0,hook_handle)
-
+#endif
     ! Copy over downwelling fluxes above cloud from clear sky
     flux_dn(:,1:i_cloud_top) = flux_dn_clear(:,1:i_cloud_top)
 
@@ -258,8 +261,9 @@ contains
       end if
     end do
 
+#ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_adding_ica_lw:fast_adding_ica_lw',1,hook_handle)
-
+#endif
   end subroutine fast_adding_ica_lw
 
 
@@ -299,8 +303,9 @@ contains
 
     real(jprb) :: hook_handle
 
+#ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_adding_ica_lw:calc_fluxes_no_scattering_lw',0,hook_handle)
-
+#endif
     ! At top-of-atmosphere there is no diffuse downwelling radiation
     flux_dn(:,1) = 0.0_jprb
 
@@ -318,9 +323,9 @@ contains
     do jlev = nlev,1,-1
       flux_up(:,jlev) = transmittance(:,jlev)*flux_up(:,jlev+1) + source_up(:,jlev)
     end do
-    
+#ifdef
     if (lhook) call dr_hook('radiation_adding_ica_lw:calc_fluxes_no_scattering_lw',1,hook_handle)
-
+#endif
   end subroutine calc_fluxes_no_scattering_lw
 
 end module radiation_adding_ica_lw

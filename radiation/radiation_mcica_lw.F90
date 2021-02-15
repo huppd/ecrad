@@ -138,9 +138,9 @@ contains
     integer :: jlev, jcol, jg
 
     real(jprb) :: hook_handle
-
+#ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_mcica_lw:solver_mcica_lw',0,hook_handle)
-
+#endif
     if (.not. config%do_clear) then
       write(nulerr,'(a)') '*** Error: longwave McICA requires clear-sky calculation to be performed'
       call radiation_abort()      
@@ -354,8 +354,9 @@ contains
       end if ! Cloud is present in profile
     end do
 
+#ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_mcica_lw:solver_mcica_lw',1,hook_handle)
-    
+#endif
   end subroutine solver_mcica_lw
 
 end module radiation_mcica_lw
