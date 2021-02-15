@@ -42,6 +42,7 @@ contains
 
     use parkind1, only           : jprb
     use yomhook,  only           : lhook, dr_hook
+    USE YOERRTM  , ONLY : JPGPT
 
     use radiation_io,   only           : nulerr, radiation_abort
     use radiation_config, only         : config_type
@@ -132,7 +133,11 @@ contains
     integer :: i_cloud_top
 
     ! Number of g points
+#ifndef _OPENACC
     integer :: ng
+#else
+    integer, parameter :: ng = JPGPT;
+#endif
 
     ! Loop indices for level, column and g point
     integer :: jlev, jcol, jg
@@ -146,7 +151,13 @@ contains
       call radiation_abort()      
     end if
 
+#ifndef _OPENACC
     ng = config%n_g_lw
+#else
+    if (ng /= config%n_g_lw) then
+        stop 'Mismatch between config and assumed n_g_lw'
+    end if
+#endif
 
     !$acc data copyin(ssa, g)
 
