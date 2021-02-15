@@ -16,3 +16,8 @@ set(FC_OMPFLAG "-homp")
 set(FC_MODFLAG "-J")
 set(CMAKE_EXE_LINKER_FLAGS_INIT "-Ktrap=fp")
 
+if(GPU_ACC)
+    message( FATAL_ERROR "OpenACC not supported with Cray Compiler")
+endif()
+
+

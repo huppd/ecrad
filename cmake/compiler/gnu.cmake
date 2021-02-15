@@ -15,3 +15,7 @@ set(FC_DEBUG_DEBUGFLAGS "-g -ffpe-trap=invalid,zero,overflow -fcheck=bounds -fin
 set(FC_OMPFLAG "-fopenmp")
 set(FC_MODFLAG "-J")
 
+if(GPU_ACC)
+    message( FATAL_ERROR "OpenACC not supported with GNU Compiler")
+endif()
+

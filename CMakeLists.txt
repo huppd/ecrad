@@ -40,6 +40,10 @@ enable_language(CXX)
 set(NETCDF_F90 "YES")
 find_package(NetCDF REQUIRED)
 
+option(GPU_ACC "Compile for GPU target using OpenACC" OFF)
+
+set(GPU_ACC_TARGET_CC "" CACHE STRING "Compute capability of the GPU target")
+
 if("${CMAKE_Fortran_COMPILER_ID}" MATCHES "PGI")
   include(cmake/compiler/pgi.cmake)
 elseif("${CMAKE_Fortran_COMPILER_ID}" MATCHES "Intel")

@@ -16,4 +16,8 @@ set(FC_OMPFLAG "-qopenmp -qopenmp-lib=compat")
 set(FC_MODFLAG "-module")
 set(CMAKE_EXE_LINKER_FLAGS_INIT "-lrt")
 
+if(GPU_ACC)
+    message( FATAL_ERROR "OpenACC not supported with Intel Compiler")
+endif()
+
 
