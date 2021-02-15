@@ -148,6 +148,8 @@ contains
 
     ng = config%n_g_lw
 
+    !$acc data copyin(ssa, g)
+
     ! Loop through columns
     do jcol = istartcol,iendcol
 
@@ -155,6 +157,7 @@ contains
       if (config%do_lw_aerosol_scattering) then
         ! Scattering case: first compute clear-sky reflectance,
         ! transmittance etc at each model level
+#ifndef _OPENACC
         do jlev = 1,nlev
           ssa_total = ssa(:,jlev,jcol)
           g_total   = g(:,jlev,jcol)
@@ -171,7 +174,7 @@ contains
              &  ref_clear, trans_clear, source_up_clear, source_dn_clear, &
              &  emission(:,jcol), albedo(:,jcol), &
              &  flux_up_clear, flux_dn_clear)
-        
+#endif
       else
         ! Non-scattering case: use simpler functions for
         ! transmission and emission
@@ -238,6 +241,7 @@ contains
                 ! In single precision we need to protect against the
                 ! case that od_total > 0.0 and ssa_total > 0.0 but
                 ! od_total*ssa_total == 0 due to underflow
+#ifndef _OPENACC
                 scat_od_total = ssa(:,jlev,jcol)*od(:,jlev,jcol) &
                      &     + ssa_cloud(config%i_band_from_reordered_g_lw,jlev,jcol) &
                      &     *  od_cloud_new
@@ -251,6 +255,7 @@ contains
                 where (od_total > 0.0_jprb)
                   ssa_total = scat_od_total / od_total
                 end where
+#endif
               else
                 do jg = 1,ng
                   if (od_total(jg) > 0.0_jprb) then
@@ -275,11 +280,13 @@ contains
                    &  planck_hl(:,jlev,jcol), planck_hl(:,jlev+1,jcol), &
                    &  reflectance(:,jlev), transmittance(:,jlev), source_up(:,jlev), source_dn(:,jlev))
             else
+#ifndef _OPENACC
               ! No-scattering case: use simpler functions for
               ! transmission and emission
               call calc_no_scattering_transmittance_lw(ng, od_total, &
                    &  planck_hl(:,jlev,jcol), planck_hl(:,jlev+1, jcol), &
                    &  transmittance(:,jlev), source_up(:,jlev), source_dn(:,jlev))
+#endif
             end if
 
           else
@@ -294,9 +301,11 @@ contains
         if (config%do_lw_aerosol_scattering) then
           ! Use adding method to compute fluxes for an overcast sky,
           ! allowing for scattering in all layers
+#ifndef _OPENACC
           call adding_ica_lw(ng, nlev, reflectance, transmittance, source_up, source_dn, &
                &  emission(:,jcol), albedo(:,jcol), &
                &  flux_up, flux_dn)
+#endif
         else if (config%do_lw_cloud_scattering) then
           ! Use adding method to compute fluxes but optimize for the
           ! presence of clear-sky layers
@@ -308,10 +317,12 @@ contains
                &  is_clear_sky_layer, i_cloud_top, flux_dn_clear, &
                &  flux_up, flux_dn)
         else
+#ifndef _OPENACC
           ! Simpler down-then-up method to compute fluxes
           call calc_fluxes_no_scattering_lw(ng, nlev, &
                &  transmittance, source_up, source_dn, emission(:,jcol), albedo(:,jcol), &
                &  flux_up, flux_dn)
+#endif
         end if
         
         ! Store overcast broadband fluxes
@@ -328,8 +339,10 @@ contains
         flux%lw_dn_surf_g(:,jcol) = total_cloud_cover*flux_dn(:,nlev+1) &
              &  + (1.0_jprb - total_cloud_cover)*flux%lw_dn_surf_clear_g(:,jcol)
 
+#ifndef _OPENACC
         ! Compute the longwave derivatives needed by Hogan and Bozzo
         ! (2015) approximate radiation update scheme
+
         if (config%do_lw_derivatives) then
           call calc_lw_derivatives_ica(ng, nlev, jcol, transmittance, flux_up(:,nlev+1), &
                &                       flux%lw_derivatives)
@@ -339,7 +352,7 @@ contains
                  &                         1.0_jprb-total_cloud_cover, flux%lw_derivatives)
           end if
         end if
-
+#endif
       else
         ! No cloud in profile and clear-sky fluxes already
         ! calculated: copy them over
@@ -354,6 +367,7 @@ contains
       end if ! Cloud is present in profile
     end do
 
+    !$acc end data
 #ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_mcica_lw:solver_mcica_lw',1,hook_handle)
 #endif
