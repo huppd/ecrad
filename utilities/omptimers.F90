@@ -78,7 +78,7 @@ contains
     CHARACTER(len=255) :: ntstr
     CALL get_environment_variable("OMP_NUM_THREADS", ntstr)
     READ(ntstr, '(I2)') omp_num_threads
-    omp_num_threads = omp_get_num_threads()
+!    omp_num_threads = omp_get_num_threads()
  
     allocate(total_time(hash_size, 0:omp_num_threads-1))
     allocate(tstart(hash_size, 0:omp_num_threads-1))
