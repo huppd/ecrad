@@ -298,6 +298,124 @@ end subroutine generate_column_exp_ran_lr
 end subroutine generate_column_exp_exp_lr
 
 
+  subroutine solver_mcica_lw_copy(nlev,istartcol,iendcol, &
+       &  config, & 
+       &  od_in, ssa_in, g_in, od_cloud_in, ssa_cloud_in, g_cloud_in, planck_hl_in, &
+       &  emission_in, albedo_in, &
+       &  od, ssa, g, od_cloud, ssa_cloud, g_cloud, planck_hl, &
+       &  emission, albedo)
+
+    use radiation_config, only         : config_type
+
+    implicit none
+
+    ! Inputs
+    integer, intent(in) :: nlev               ! number of model levels
+    integer, intent(in) :: istartcol, iendcol ! range of columns to process
+    type(config_type),        intent(in) :: config
+
+    ! Gas and aerosol optical depth, single-scattering albedo and
+    ! asymmetry factor at each longwave g-point
+    real(jprb), intent(in), dimension(config%n_g_lw, nlev, istartcol:iendcol) :: &
+         &  od_in
+    real(jprb), intent(in), dimension(config%n_g_lw_if_scattering, nlev, istartcol:iendcol) :: &
+         &  ssa_in, g_in
+
+    ! Cloud and precipitation optical depth, single-scattering albedo and
+    ! asymmetry factor in each longwave band
+    real(jprb), intent(in), dimension(config%n_bands_lw,nlev,istartcol:iendcol)   :: &
+         &  od_cloud_in
+    real(jprb), intent(in), dimension(config%n_bands_lw_if_scattering, &
+         &  nlev,istartcol:iendcol) :: ssa_cloud_in, g_cloud_in
+
+    ! Planck function at each half-level and the surface
+    real(jprb), intent(in), dimension(config%n_g_lw,nlev+1,istartcol:iendcol) :: &
+         &  planck_hl_in
+
+    ! Emission (Planck*emissivity) and albedo (1-emissivity) at the
+    ! surface at each longwave g-point
+    real(jprb), intent(in), dimension(config%n_g_lw, istartcol:iendcol) :: emission_in, albedo_in
+
+    ! Number of g points
+    integer :: ng
+
+    ! Loop indices for level, column and g point
+    integer :: jlev, jcol, jg
+
+    real(jprb), intent(inout), dimension(istartcol:iendcol, nlev, config%n_g_lw) :: &
+    &  od
+
+    real(jprb), intent(inout), dimension(istartcol:iendcol, nlev, config%n_g_lw_if_scattering) :: &
+    &  ssa, g
+
+    ! Cloud and precipitation optical depth, single-scattering albedo and
+    ! asymmetry factor in each longwave band
+    real(jprb), intent(inout), dimension(istartcol:iendcol,nlev,config%n_bands_lw)   :: &
+        &  od_cloud
+    real(jprb), intent(inout), dimension(istartcol:iendcol,nlev,config%n_bands_lw_if_scattering) :: ssa_cloud, g_cloud
+
+    ! Planck function at each half-level and the surface
+    real(jprb), intent(inout), dimension(istartcol:iendcol,nlev+1,config%n_g_lw) :: &
+        &  planck_hl
+
+    ! Emission (Planck*emissivity) and albedo (1-emissivity) at the
+    ! surface at each longwave g-point
+    real(jprb), intent(inout), dimension(istartcol:iendcol, config%n_g_lw) :: emission, albedo
+
+    ng = config%n_g_lw
+
+    write(*,*) "DOMAIN SIZES :", ng, nlev, istartcol,iendcol
+
+    do jcol = istartcol,iendcol
+      do jlev=1,nlev
+        do jg = 1,config%n_g_lw
+          od(jcol,jlev,jg) = od_in(jg,jlev,jcol)
+        enddo
+      enddo
+    enddo
+
+    do jcol = istartcol,iendcol
+      do jlev=1,nlev
+        do jg = 1,config%n_g_lw_if_scattering
+          ssa(jcol,jlev,jg) = ssa_in(jg,jlev,jcol)
+          g(jcol,jlev,jg) = g_in(jg,jlev,jcol)
+        enddo
+      enddo
+    enddo
+
+    do jcol = istartcol,iendcol
+      do jlev=1,nlev
+        do jg = 1,config%n_bands_lw
+          od_cloud(jcol,jlev,jg) = od_cloud_in(jg,jlev,jcol)
+        enddo
+      enddo
+    enddo
+
+    do jcol = istartcol,iendcol
+      do jlev=1,nlev
+        do jg = 1,config%n_bands_lw_if_scattering
+          ssa_cloud(jcol,jlev,jg) = ssa_cloud_in(jg,jlev,jcol)
+          g_cloud(jcol,jlev,jg) = g_cloud_in(jg,jlev,jcol)
+        enddo
+      enddo
+    enddo
+
+    do jcol = istartcol,iendcol
+      do jlev=1,nlev+1
+        do jg = 1,config%n_g_lw
+          planck_hl(jcol,jlev,jg) = planck_hl_in(jg,jlev,jcol)
+        enddo
+      enddo
+    enddo
+
+    do jcol = istartcol,iendcol
+      do jg = 1,config%n_g_lw
+        emission(jcol,jg) = emission_in(jg,jcol)
+        albedo(jcol,jg) = albedo_in(jg,jcol)
+      enddo
+    enddo
+  
+  end subroutine solver_mcica_lw_copy
 
   !---------------------------------------------------------------------
   ! Longwave Monte Carlo Independent Column Approximation
@@ -311,8 +429,8 @@ end subroutine generate_column_exp_exp_lr
   ! overlap parameter accounting for this weighting.
   subroutine solver_mcica_lw(nlev,istartcol,iendcol, &
        &  config, single_level, cloud, & 
-       &  od_in, ssa_in, g_in, od_cloud_in, ssa_cloud_in, g_cloud_in, planck_hl_in, &
-       &  emission_in, albedo_in, &
+       &  od, ssa, g, od_cloud, ssa_cloud, g_cloud, planck_hl, &
+       &  emission, albedo, &
        &  flux)
 
     use parkind1, only           : jprb,jprd
@@ -359,27 +477,29 @@ end subroutine generate_column_exp_exp_lr
     type(single_level_type),  intent(in) :: single_level
     type(cloud_type),         intent(in) :: cloud
 
-    ! Gas and aerosol optical depth, single-scattering albedo and
-    ! asymmetry factor at each longwave g-point
-    real(jprb), intent(in), dimension(config%n_g_lw, nlev, istartcol:iendcol) :: &
-         &  od_in
-    real(jprb), intent(in), dimension(config%n_g_lw_if_scattering, nlev, istartcol:iendcol) :: &
-         &  ssa_in, g_in
+    real(jprb), intent(in), dimension(istartcol:iendcol, nlev, config%n_g_lw) :: &
+    &  od
+
+    real(jprb), intent(in),dimension(istartcol:iendcol, nlev, config%n_g_lw_if_scattering) :: &
+    &  ssa, g
 
     ! Cloud and precipitation optical depth, single-scattering albedo and
     ! asymmetry factor in each longwave band
-    real(jprb), intent(in), dimension(config%n_bands_lw,nlev,istartcol:iendcol)   :: &
-         &  od_cloud_in
-    real(jprb), intent(in), dimension(config%n_bands_lw_if_scattering, &
-         &  nlev,istartcol:iendcol) :: ssa_cloud_in, g_cloud_in
+    real(jprb), intent(in),dimension(istartcol:iendcol,nlev,config%n_bands_lw)   :: &
+        &  od_cloud
+    real(jprb), intent(in),dimension(istartcol:iendcol,nlev,config%n_bands_lw_if_scattering) :: ssa_cloud, g_cloud
 
     ! Planck function at each half-level and the surface
-    real(jprb), intent(in), dimension(config%n_g_lw,nlev+1,istartcol:iendcol) :: &
-         &  planck_hl_in
+    real(jprb), intent(in),dimension(istartcol:iendcol,nlev+1,config%n_g_lw) :: &
+        &  planck_hl
 
     ! Emission (Planck*emissivity) and albedo (1-emissivity) at the
     ! surface at each longwave g-point
-    real(jprb), intent(in), dimension(config%n_g_lw, istartcol:iendcol) :: emission_in, albedo_in
+    real(jprb), intent(in), dimension(istartcol:iendcol, config%n_g_lw) :: emission, albedo
+
+
+    ! Gas and aerosol optical depth, single-scattering albedo and
+    ! asymmetry factor at each longwave g-point
 
     ! Output
     type(flux_type), intent(inout):: flux
@@ -456,26 +576,6 @@ end subroutine generate_column_exp_exp_lr
 & omphook_adding_ica_lw_b, omphook_fast_adding_ica_lw, &
 & omphook_calc_fluxes_no_scattering_lw_b, omphook_calc_lw_derivatives_ica, &
 & omphook_modify_lw_derivatives_ica, omphook_generate_column_exp_exp           
-
-    real(jprb), dimension(istartcol:iendcol, nlev, config%n_g_lw) :: &
-    &  od
-
-    real(jprb), dimension(istartcol:iendcol, nlev, config%n_g_lw_if_scattering) :: &
-    &  ssa, g
-
-    ! Cloud and precipitation optical depth, single-scattering albedo and
-    ! asymmetry factor in each longwave band
-    real(jprb), dimension(istartcol:iendcol,nlev,config%n_bands_lw)   :: &
-        &  od_cloud
-    real(jprb), dimension(istartcol:iendcol,nlev,config%n_bands_lw_if_scattering) :: ssa_cloud, g_cloud
-
-    ! Planck function at each half-level and the surface
-    real(jprb), dimension(istartcol:iendcol,nlev+1,config%n_g_lw) :: &
-        &  planck_hl
-
-    ! Emission (Planck*emissivity) and albedo (1-emissivity) at the
-    ! surface at each longwave g-point
-    real(jprb), dimension(istartcol:iendcol, config%n_g_lw) :: emission, albedo
 
     ! Scaled random number for finding cloud
     real(jprb) :: trigger
@@ -555,55 +655,6 @@ end subroutine generate_column_exp_exp_lr
     ng = config%n_g_lw
 
     write(*,*) "DOMAIN SIZES :", ng, nlev, istartcol,iendcol
-
-    do jcol = istartcol,iendcol
-      do jlev=1,nlev
-        do jg = 1,config%n_g_lw
-          od(jcol,jlev,jg) = od_in(jg,jlev,jcol)
-        enddo
-      enddo
-    enddo
-
-    do jcol = istartcol,iendcol
-      do jlev=1,nlev
-        do jg = 1,config%n_g_lw_if_scattering
-          ssa(jcol,jlev,jg) = ssa_in(jg,jlev,jcol)
-          g(jcol,jlev,jg) = g_in(jg,jlev,jcol)
-        enddo
-      enddo
-    enddo
-
-    do jcol = istartcol,iendcol
-      do jlev=1,nlev
-        do jg = 1,config%n_bands_lw
-          od_cloud(jcol,jlev,jg) = od_cloud_in(jg,jlev,jcol)
-        enddo
-      enddo
-    enddo
-
-    do jcol = istartcol,iendcol
-      do jlev=1,nlev
-        do jg = 1,config%n_bands_lw_if_scattering
-          ssa_cloud(jcol,jlev,jg) = ssa_cloud_in(jg,jlev,jcol)
-          g_cloud(jcol,jlev,jg) = g_cloud_in(jg,jlev,jcol)
-        enddo
-      enddo
-    enddo
-
-    do jcol = istartcol,iendcol
-      do jlev=1,nlev+1
-        do jg = 1,config%n_g_lw
-          planck_hl(jcol,jlev,jg) = planck_hl_in(jg,jlev,jcol)
-        enddo
-      enddo
-    enddo
-
-    do jcol = istartcol,iendcol
-      do jg = 1,config%n_g_lw
-        emission(jcol,jg) = emission_in(jg,jcol)
-        albedo(jcol,jg) = albedo_in(jg,jcol)
-      enddo
-    enddo
 
     if (lhook) call dr_hook('radiation_mcica_lw:solver_mcica_lw',0,hook_handle)
     call omptimer_mark('radiation_mcica_lw:solver_mcica_lw',0, &

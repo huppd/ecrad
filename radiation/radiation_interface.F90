@@ -194,7 +194,7 @@ contains
     use radiation_tripleclouds_sw,only : solver_tripleclouds_sw
     use radiation_tripleclouds_lw,only : solver_tripleclouds_lw
     use radiation_mcica_sw,       only : solver_mcica_sw
-    use radiation_mcica_lw,       only : solver_mcica_lw
+    use radiation_mcica_lw,       only : solver_mcica_lw, solver_mcica_lw_copy
     use radiation_cloudless_sw,   only : solver_cloudless_sw
     use radiation_cloudless_lw,   only : solver_cloudless_lw
     use radiation_homogeneous_sw, only : solver_homogeneous_sw
@@ -275,6 +275,26 @@ contains
 
     character(len=100) :: rad_prop_file_name
     character(*), parameter :: rad_prop_base_file_name = "radiative_properties"
+
+    real(jprb), dimension(istartcol:iendcol, nlev, config%n_g_lw) :: &
+    &  od_o
+
+    real(jprb), dimension(istartcol:iendcol, nlev, config%n_g_lw_if_scattering) :: &
+    &  ssa_o, g_o
+
+    ! Cloud and precipitation optical depth, single-scattering albedo and
+    ! asymmetry factor in each longwave band
+    real(jprb), dimension(istartcol:iendcol,nlev,config%n_bands_lw)   :: &
+        &  od_cloud_o
+    real(jprb), dimension(istartcol:iendcol,nlev,config%n_bands_lw_if_scattering) :: ssa_cloud_o, g_cloud_o
+
+    ! Planck function at each half-level and the surface
+    real(jprb), dimension(istartcol:iendcol,nlev+1,config%n_g_lw) :: &
+        &  planck_hl_o
+
+    ! Emission (Planck*emissivity) and albedo (1-emissivity) at the
+    ! surface at each longwave g-point
+    real(jprb), dimension(istartcol:iendcol, config%n_g_lw) :: emission_o, albedo_o
 
     real(jprb) :: hook_handle
 
@@ -383,10 +403,18 @@ contains
 
         if (config%i_solver_lw == ISolverMcICA) then
           ! Compute fluxes using the McICA longwave solver
+
+          call solver_mcica_lw_copy(nlev,istartcol,iendcol, &
+               &  config, &
+               &  od_lw, ssa_lw, g_lw, od_lw_cloud, ssa_lw_cloud, &
+              &  g_lw_cloud, planck_hl, lw_emission, lw_albedo, &
+               &  od_o, ssa_o, g_o, od_cloud_o, ssa_cloud_o, &
+              &  g_cloud_o, planck_hl_o, emission_o, albedo_o)
+
           call solver_mcica_lw(nlev,istartcol,iendcol, &
                &  config, single_level, cloud, & 
-               &  od_lw, ssa_lw, g_lw, od_lw_cloud, ssa_lw_cloud, &
-               &  g_lw_cloud, planck_hl, lw_emission, lw_albedo, flux)
+               &  od_o, ssa_o, g_o, od_cloud_o, ssa_cloud_o, &
+               &  g_cloud_o, planck_hl_o, emission_o, albedo_o, flux)
         else if (config%i_solver_lw == ISolverSPARTACUS) then
           ! Compute fluxes using the SPARTACUS longwave solver
           call solver_spartacus_lw(nlev,istartcol,iendcol, &
