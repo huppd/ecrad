@@ -279,11 +279,13 @@ contains
 #ifndef _OPENACC
     ng = config%n_g_lw
 #endif
-  !$acc data present(od, planck_hl, flux, flux%lw_up_clear, flux%lw_dn_clear, flux%lw_dn_surf_clear_g, flux%lw_up, flux%lw_dn, flux%lw_dn_surf_g,&
-  !$acc& cloud, cloud%fraction, config, config%i_band_from_reordered_g_lw, od_cloud, ssa_cloud, g_cloud, od_scaling) &
-  !$acc& copyin(trans_clear, source_up_clear, source_dn_clear, emission, albedo, flux_up_clear, flux_dn_clear, &
+  !$acc declare device_resident(trans_clear, source_up_clear, source_dn_clear, emission, albedo, &
   !$acc& ref_clear, acc, is_clear_sky_layer, flux_up, flux_dn, flux_up_clear, flux_dn_clear, od_cloud_new, &
   !$acc& gamma1, gamma2, od_total, ssa_total, g_total, source_up, source_dn, reflectance, transmittance, i_cloud_top)
+
+  !$acc data present(od, planck_hl, flux, flux%lw_up_clear, flux%lw_dn_clear, flux%lw_dn_surf_clear_g, flux%lw_up, flux%lw_dn, flux%lw_dn_surf_g,&
+  !$acc& cloud, cloud%fraction, config, config%i_band_from_reordered_g_lw, od_cloud, ssa_cloud, g_cloud, od_scaling)
+
 
   !$acc parallel default(none) num_gangs(1) num_workers(NUM_WARPS) vector_length(WARP_SIZE)
   ! Clear-sky calculation
@@ -423,13 +425,8 @@ contains
         source_dn(:,jlev) = source_dn_clear(:,jlev)
       end if
     end do
-  end if
-  !$acc end parallel
-  !$acc update host(trans_clear, source_up_clear, source_dn_clear, emission, albedo, flux_up_clear, flux_dn_clear, ref_clear)
-  !$acc update host(reflectance, transmittance, source_up, source_dn, is_clear_sky_layer, i_cloud_top, flux_up, flux_dn)
-  !$acc update host(flux%lw_up_clear(jcol,:), flux%lw_dn_clear(jcol,:), flux%lw_dn_surf_clear_g(:,jcol))
 
-  if (total_cloud_cover >= config%cloud_fraction_threshold) then
+
     if (config%do_lw_aerosol_scattering) then
       ! Use adding method to compute fluxes for an overcast sky,
       ! allowing for scattering in all layers
@@ -458,9 +455,11 @@ contains
     end if
 
     ! Store overcast broadband fluxes
-    flux%lw_up(jcol,:) = sum(flux_up,1)
-    flux%lw_dn(jcol,:) = sum(flux_dn,1)
 
+    do jlev = 1,nlev+1
+        flux%lw_up(jcol,jlev) = sum_reduction(ng, flux_up(:, jlev))
+        flux%lw_dn(jcol,jlev) = sum_reduction(ng, flux_dn(:, jlev))
+    end do
     ! Cloudy flux profiles currently assume completely overcast
     ! skies; perform weighted average with clear-sky profile
     flux%lw_up(jcol,:) =  total_cloud_cover *flux%lw_up(jcol,:) &
@@ -498,7 +497,9 @@ contains
     end if
 #endif
   end if ! Cloud is present in profile
-  !!$acc update flux%lw_up(jcol,:), flux%lw_dn(jcol,:), flux%lw_dn_surf_g(jcol,:))
+  !$acc end parallel
+  !$acc update host(flux%lw_up_clear(jcol,:), flux%lw_dn_clear(jcol,:), flux%lw_dn_surf_clear_g(:,jcol))
+  !$acc update host(flux%lw_up(jcol,:), flux%lw_dn(jcol,:), flux%lw_dn_surf_g(jcol,:))
   !$acc end data
 
 #ifdef DR_HOOK
