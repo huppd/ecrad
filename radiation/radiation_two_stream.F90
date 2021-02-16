@@ -351,14 +351,14 @@ contains
     real(jprd) :: coeff, coeff_up_top, coeff_up_bot, coeff_dn_top, coeff_dn_bot !, planck_mean
 
     integer :: jg
-    !$acc routine vector
+    !$acc routine worker
 
 #ifdef DO_DR_HOOK_TWO_STREAM
     real(jprb) :: hook_handle
 
     if (lhook) call dr_hook('radiation_two_stream:calc_no_scattering_transmittance_lw',0,hook_handle)
 #endif
-    !$acc loop independent vector
+    !$acc loop independent worker
     do jg = 1, ng
       ! Compute upward and downward emission assuming the Planck
       ! function to vary linearly with optical depth within the layer

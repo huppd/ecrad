@@ -303,7 +303,7 @@ contains
 
     real(jprb) :: hook_handle
 
-    !$acc routine vector
+    !$acc routine worker
 
 #ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_adding_ica_lw:calc_fluxes_no_scattering_lw',0,hook_handle)
@@ -315,7 +315,7 @@ contains
     ! at each half-level
     !$acc loop seq
     do jlev = 1,nlev
-      !$acc loop independent vector
+      !$acc loop independent worker
       do jcol = 1, ncol
         flux_dn(jcol,jlev+1) = transmittance(jcol,jlev)*flux_dn(jcol,jlev) + source_dn(jcol,jlev)
       end do
@@ -330,7 +330,7 @@ contains
     ! at each half-level
     !$acc loop seq
     do jlev = nlev,1,-1
-      !$acc loop independent vector
+      !$acc loop independent worker
       do jcol = 1, ncol
         flux_up(jcol,jlev) = transmittance(jcol,jlev)*flux_up(jcol,jlev+1) + source_up(jcol,jlev)
       end do

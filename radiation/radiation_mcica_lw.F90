@@ -141,8 +141,11 @@ contains
            &  config%pdf_sampler, od_scaling(:, :, jcol), total_cloud_cover(jcol), &
            &  is_beta_overlap=config%use_beta_overlap)
     end do
+    ! Store total cloud cover
+    flux%cloud_cover_lw(istartcol:iendcol) = total_cloud_cover
 
-    !$acc data copyin(od, ssa, g, od_cloud, ssa_cloud, g_cloud, planck_hl, emission, albedo)
+    !$acc data copyin(od, ssa, g, od_cloud, ssa_cloud, g_cloud, planck_hl, emission, albedo,&
+    !$acc& flux, flux%lw_up_clear, flux%lw_dn_clear, flux%lw_dn_surf_clear_g)
 
     ! Loop through columns
     do jcol = istartcol,iendcol
@@ -259,10 +262,13 @@ contains
     integer :: ng
 #else
     integer, parameter :: ng = JPGPT;
+    integer, parameter :: WARP_SIZE = 32
+    integer, parameter :: NUM_WARPS = merge(ng / WARP_SIZE, ng / WARP_SIZE + 1, mod(ng, WARP_SIZE) == 0)
 #endif
 
     ! Loop indices for level, column and g point
     integer :: jlev, jg
+    real(jprb) :: acc
 
     real(jprb) :: hook_handle
 #ifdef DR_HOOK
@@ -272,10 +278,9 @@ contains
 #ifndef _OPENACC
     ng = config%n_g_lw
 #endif
-
-  !$acc data present(od, planck_hl) &
-  !$acc& copyin(trans_clear, source_up_clear, source_dn_clear, emission, albedo, flux_up_clear, flux_dn_clear, ref_clear)
-  !$acc parallel default(none) num_gangs(1) num_workers(1) vector_length(ng)
+  !$acc data present(od, planck_hl, flux, flux%lw_up_clear, flux%lw_dn_clear, flux%lw_dn_surf_clear_g) &
+  !$acc& copyin(trans_clear, source_up_clear, source_dn_clear, emission, albedo, flux_up_clear, flux_dn_clear, ref_clear, acc)
+  !$acc parallel default(none) num_gangs(1) num_workers(NUM_WARPS) vector_length(WARP_SIZE)
   ! Clear-sky calculation
   if (config%do_lw_aerosol_scattering) then
     ! Scattering case: first compute clear-sky reflectance,
@@ -317,18 +322,24 @@ contains
     ! used in cloudy-sky case
     ref_clear = 0.0_jprb
   end if
-  !$acc end parallel
-  !$acc update host(trans_clear, source_up_clear, source_dn_clear, emission, albedo, flux_up_clear, flux_dn_clear, ref_clear)
-  !$acc end data
 
   ! Sum over g-points to compute broadband fluxes
-  flux%lw_up_clear(jcol,:) = sum(flux_up_clear,1)
-  flux%lw_dn_clear(jcol,:) = sum(flux_dn_clear,1)
+  !$acc loop seq
+  do jlev = 1,nlev+1
+    flux%lw_up_clear(jcol,jlev) = sum_reduction(ng, flux_up_clear(:, jlev))
+    flux%lw_dn_clear(jcol,jlev) = sum_reduction(ng, flux_dn_clear(:, jlev))
+  end do
+
+  !$acc end parallel
+  !$acc update host(trans_clear, source_up_clear, source_dn_clear, emission, albedo, flux_up_clear, flux_dn_clear, ref_clear)
+  !$acc update host(flux%lw_up_clear(jcol,:), flux%lw_dn_clear(jcol,:), flux%lw_dn_surf_clear_g(:,jcol))
+  !$acc end data
+
+
   ! Store surface spectral downwelling fluxes
   flux%lw_dn_surf_clear_g(:,jcol) = flux_dn_clear(:,nlev+1)
 
-  ! Store total cloud cover
-  flux%cloud_cover_lw(jcol) = total_cloud_cover
+
 
   if (total_cloud_cover >= config%cloud_fraction_threshold) then
     ! Total-sky calculation
@@ -487,5 +498,17 @@ contains
     if (lhook) call dr_hook('radiation_mcica_lw:solver_mcica_lw_col',1,hook_handle)
 #endif
   end subroutine solver_mcica_lw_col
+
+  pure function sum_reduction(ng, arr) result(res)
+    use parkind1, only  : jprb
+    USE YOERRTM  , ONLY : JPGPT
+    integer, intent(in) :: ng
+    real(jprb), intent(in) :: arr(1:ng)
+    real(jprb) :: res
+    !$acc routine worker
+
+    res = sum(arr)
+
+  end function
 
 end module radiation_mcica_lw
