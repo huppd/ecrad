@@ -101,6 +101,15 @@ contains
     integer, parameter :: ng = JPGPT;
 #endif
 
+
+
+    ! Optical depth scaling from the cloud generator, zero indicating
+    ! clear skies
+    real(jprb), dimension(config%n_g_lw,nlev, istartcol:iendcol) :: od_scaling
+
+    ! Total cloud cover output from the cloud generator
+    real(jprb), dimension(istartcol:iendcol) :: total_cloud_cover
+
     ! Loop indices for level, column and g point
     integer :: jcol
 
@@ -121,6 +130,18 @@ contains
     end if
 #endif
 
+    do jcol = istartcol,iendcol
+      ! Do cloudy-sky calculation; add a prime number to the seed in
+      ! the longwave
+      call cloud_generator(ng, nlev, config%i_overlap_scheme, &
+           &  single_level%iseed(jcol) + 997, &
+           &  config%cloud_fraction_threshold, &
+           &  cloud%fraction(jcol,:), cloud%overlap_param(jcol,:), &
+           &  config%cloud_inhom_decorr_scaling, cloud%fractional_std(jcol,:), &
+           &  config%pdf_sampler, od_scaling(:, :, jcol), total_cloud_cover(jcol), &
+           &  is_beta_overlap=config%use_beta_overlap)
+    end do
+
     !$acc data copyin(od, ssa, g, od_cloud, ssa_cloud, g_cloud, planck_hl, emission, albedo)
 
     ! Loop through columns
@@ -129,7 +150,7 @@ contains
            &  config, single_level, cloud, &
            &  od(:, :, jcol), ssa(:, :, jcol), g(:, :, jcol), od_cloud(:, :, jcol), ssa_cloud(:, :, jcol), &
            & g_cloud(:, :, jcol), planck_hl(:, :, jcol), emission(:, jcol), albedo(:, jcol), &
-           &  flux)
+           &  flux, od_scaling(:, :, jcol), total_cloud_cover(jcol))
     end do
 
     !$acc end data
@@ -142,7 +163,7 @@ contains
        &  config, single_level, cloud, &
        &  od, ssa, g, od_cloud, ssa_cloud, g_cloud, planck_hl, &
        &  emission, albedo, &
-       &  flux)
+       &  flux, od_scaling, total_cloud_cover)
 
     use parkind1, only           : jprb
     use yomhook,  only           : lhook, dr_hook
@@ -218,14 +239,14 @@ contains
 
     ! Optical depth scaling from the cloud generator, zero indicating
     ! clear skies
-    real(jprb), dimension(config%n_g_lw,nlev) :: od_scaling
+    real(jprb), dimension(config%n_g_lw,nlev), intent(in) :: od_scaling
 
     ! Modified optical depth after McICA scaling to represent cloud
     ! inhomogeneity
     real(jprb), dimension(config%n_g_lw) :: od_cloud_new
 
     ! Total cloud cover output from the cloud generator
-    real(jprb) :: total_cloud_cover
+    real(jprb), intent(in) :: total_cloud_cover
 
     ! Identify clear-sky layers
     logical :: is_clear_sky_layer(nlev)
@@ -298,16 +319,6 @@ contains
   flux%lw_dn_clear(jcol,:) = sum(flux_dn_clear,1)
   ! Store surface spectral downwelling fluxes
   flux%lw_dn_surf_clear_g(:,jcol) = flux_dn_clear(:,nlev+1)
-
-  ! Do cloudy-sky calculation; add a prime number to the seed in
-  ! the longwave
-  call cloud_generator(ng, nlev, config%i_overlap_scheme, &
-       &  single_level%iseed(jcol) + 997, &
-       &  config%cloud_fraction_threshold, &
-       &  cloud%fraction(jcol,:), cloud%overlap_param(jcol,:), &
-       &  config%cloud_inhom_decorr_scaling, cloud%fractional_std(jcol,:), &
-       &  config%pdf_sampler, od_scaling, total_cloud_cover, &
-       &  is_beta_overlap=config%use_beta_overlap)
 
   ! Store total cloud cover
   flux%cloud_cover_lw(jcol) = total_cloud_cover
