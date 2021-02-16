@@ -273,7 +273,7 @@ contains
   ! fluxes from the transmission and emission of each layer, and then
   ! passing back up through the atmosphere to compute the upwelling
   ! fluxes in the same way.
-  subroutine calc_fluxes_no_scattering_lw(ncol, nlev, &
+  pure subroutine calc_fluxes_no_scattering_lw(ncol, nlev, &
        &  transmittance, source_up, source_dn, emission_surf, albedo_surf, flux_up, flux_dn)
 
     use parkind1, only           : jprb
@@ -299,9 +299,11 @@ contains
     real(jprb), intent(out), dimension(ncol, nlev+1) :: flux_up, flux_dn
     
     ! Loop index for model level
-    integer :: jlev
+    integer :: jlev, jcol
 
     real(jprb) :: hook_handle
+
+    !$acc routine vector
 
 #ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_adding_ica_lw:calc_fluxes_no_scattering_lw',0,hook_handle)
@@ -311,17 +313,27 @@ contains
 
     ! Work down through the atmosphere computing the downward fluxes
     ! at each half-level
+    !$acc loop seq
     do jlev = 1,nlev
-      flux_dn(:,jlev+1) = transmittance(:,jlev)*flux_dn(:,jlev) + source_dn(:,jlev)
+      !$acc loop independent vector
+      do jcol = 1, ncol
+        flux_dn(jcol,jlev+1) = transmittance(jcol,jlev)*flux_dn(jcol,jlev) + source_dn(jcol,jlev)
+      end do
     end do
 
     ! Surface reflection and emission
-    flux_up(:,nlev+1) = emission_surf + albedo_surf * flux_dn(:,nlev+1)
+    do jcol = 1, ncol
+        flux_up(jcol,nlev+1) = emission_surf(jcol) + albedo_surf(jcol) * flux_dn(jcol,nlev+1)
+    end do
 
     ! Work back up through the atmosphere computing the upward fluxes
     ! at each half-level
+    !$acc loop seq
     do jlev = nlev,1,-1
-      flux_up(:,jlev) = transmittance(:,jlev)*flux_up(:,jlev+1) + source_up(:,jlev)
+      !$acc loop independent vector
+      do jcol = 1, ncol
+        flux_up(jcol,jlev) = transmittance(jcol,jlev)*flux_up(jcol,jlev+1) + source_up(jcol,jlev)
+      end do
     end do
 #ifdef
     if (lhook) call dr_hook('radiation_adding_ica_lw:calc_fluxes_no_scattering_lw',1,hook_handle)

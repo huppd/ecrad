@@ -273,6 +273,9 @@ contains
     ng = config%n_g_lw
 #endif
 
+  !$acc data present(od, planck_hl) &
+  !$acc& copyin(trans_clear, source_up_clear, source_dn_clear, emission, albedo, flux_up_clear, flux_dn_clear, ref_clear)
+  !$acc parallel default(none) num_gangs(1) num_workers(1) vector_length(ng)
   ! Clear-sky calculation
   if (config%do_lw_aerosol_scattering) then
     ! Scattering case: first compute clear-sky reflectance,
@@ -298,6 +301,7 @@ contains
   else
     ! Non-scattering case: use simpler functions for
     ! transmission and emission
+    !$acc loop seq
     do jlev = 1,nlev
       call calc_no_scattering_transmittance_lw(ng, od(:,jlev), &
            &  planck_hl(:,jlev), planck_hl(:,jlev+1), &
@@ -306,13 +310,16 @@ contains
     ! Simpler down-then-up method to compute fluxes
     call calc_fluxes_no_scattering_lw(ng, nlev, &
          &  trans_clear, source_up_clear, source_dn_clear, &
-         &  emission(:), albedo(:), &
+         &  emission, albedo, &
          &  flux_up_clear, flux_dn_clear)
 
     ! Ensure that clear-sky reflectance is zero since it may be
     ! used in cloudy-sky case
     ref_clear = 0.0_jprb
   end if
+  !$acc end parallel
+  !$acc update host(trans_clear, source_up_clear, source_dn_clear, emission, albedo, flux_up_clear, flux_dn_clear, ref_clear)
+  !$acc end data
 
   ! Sum over g-points to compute broadband fluxes
   flux%lw_up_clear(jcol,:) = sum(flux_up_clear,1)
