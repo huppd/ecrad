@@ -136,7 +136,7 @@ contains
   !---------------------------------------------------------------------
   ! Use the scalar "adding" method to compute longwave flux profiles,
   ! including scattering in cloudy layers only.
-  subroutine fast_adding_ica_lw(ncol, nlev, &
+  pure subroutine fast_adding_ica_lw(ncol, nlev, &
        &  reflectance, transmittance, source_up, source_dn, emission_surf, albedo_surf, &
        &  is_clear_sky_layer, i_cloud_top, flux_dn_clear, &
        &  flux_up, flux_dn)
@@ -344,7 +344,7 @@ contains
         flux_up(jcol,jlev) = transmittance(jcol,jlev)*flux_up(jcol,jlev+1) + source_up(jcol,jlev)
       end do
     end do
-#ifdef
+#ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_adding_ica_lw:calc_fluxes_no_scattering_lw',1,hook_handle)
 #endif
   end subroutine calc_fluxes_no_scattering_lw

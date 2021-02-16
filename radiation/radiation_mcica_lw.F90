@@ -99,9 +99,9 @@ contains
     integer :: ng
 #else
     integer, parameter :: ng = JPGPT;
+    integer, parameter :: WARP_SIZE = 32
+    integer, parameter :: NUM_WARPS = merge(ng / WARP_SIZE, ng / WARP_SIZE + 1, mod(ng, WARP_SIZE) == 0)
 #endif
-
-
 
     ! Optical depth scaling from the cloud generator, zero indicating
     ! clear skies
@@ -111,7 +111,7 @@ contains
     real(jprb), dimension(istartcol:iendcol) :: total_cloud_cover
 
     ! Loop indices for level, column and g point
-    integer :: jcol
+    integer :: jcol, ncol
 
     real(jprb) :: hook_handle
 #ifdef DR_HOOK
@@ -143,28 +143,37 @@ contains
     end do
     ! Store total cloud cover
     flux%cloud_cover_lw(istartcol:iendcol) = total_cloud_cover
-
+#ifdef _OPENACC
+    call init_gpu()
+#endif
     !$acc data copyin(od, ssa, g, od_cloud, ssa_cloud, g_cloud, planck_hl, emission, albedo,&
     !$acc& flux, flux%lw_up_clear, flux%lw_dn_clear, flux%lw_dn_surf_clear_g, flux%lw_up, flux%lw_dn, flux%lw_dn_surf_g,&
-    !$acc& config, config%i_band_from_reordered_g_lw, cloud, cloud%fraction, od_cloud, ssa_cloud, g_cloud,  od_scaling)
+    !$acc& config, config%i_band_from_reordered_g_lw, cloud, cloud%fraction, od_cloud, ssa_cloud, g_cloud,  od_scaling, total_cloud_cover)
+    ncol = iendcol - istartcol + 1
 
+    !$acc parallel default(none) num_gangs(ncol) num_workers(NUM_WARPS) vector_length(WARP_SIZE)
     ! Loop through columns
+    !$acc loop gang
     do jcol = istartcol,iendcol
         call solver_mcica_lw_col(jcol, nlev, &
-           &  config, single_level, cloud, &
+           &  config, cloud, &
            &  od(:, :, jcol), ssa(:, :, jcol), g(:, :, jcol), od_cloud(:, :, jcol), ssa_cloud(:, :, jcol), &
            & g_cloud(:, :, jcol), planck_hl(:, :, jcol), emission(:, jcol), albedo(:, jcol), &
            &  flux, od_scaling(:, :, jcol), total_cloud_cover(jcol))
     end do
+    !$acc end parallel
 
+
+    !$acc update host(flux%lw_up_clear(istartcol:iendcol,:), flux%lw_dn_clear(istartcol:iendcol,:), flux%lw_dn_surf_clear_g(:,istartcol:iendcol))
+    !$acc update host(flux%lw_up(istartcol:iendcol,:), flux%lw_dn(istartcol:iendcol,:), flux%lw_dn_surf_g(istartcol:iendcol,:))
     !$acc end data
 #ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_mcica_lw:solver_mcica_lw',1,hook_handle)
 #endif
   end subroutine solver_mcica_lw
 
-  subroutine solver_mcica_lw_col(jcol, nlev, &
-       &  config, single_level, cloud, &
+  pure subroutine solver_mcica_lw_col(jcol, nlev, &
+       &  config, cloud, &
        &  od, ssa, g, od_cloud, ssa_cloud, g_cloud, planck_hl, &
        &  emission, albedo, &
        &  flux, od_scaling, total_cloud_cover)
@@ -192,7 +201,6 @@ contains
     integer, intent(in) :: jcol
     integer, intent(in) :: nlev               ! number of model levels
     type(config_type),        intent(in) :: config
-    type(single_level_type),  intent(in) :: single_level
     type(cloud_type),         intent(in) :: cloud
 
     ! Gas and aerosol optical depth, single-scattering albedo and
@@ -263,8 +271,6 @@ contains
     integer :: ng
 #else
     integer, parameter :: ng = JPGPT;
-    integer, parameter :: WARP_SIZE = 32
-    integer, parameter :: NUM_WARPS = merge(ng / WARP_SIZE, ng / WARP_SIZE + 1, mod(ng, WARP_SIZE) == 0)
 #endif
 
     ! Loop indices for level, column and g point
@@ -272,6 +278,7 @@ contains
     real(jprb) :: acc
 
     real(jprb) :: hook_handle
+    !$acc routine worker
 #ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_mcica_lw:solver_mcica_lw_col',0,hook_handle)
 #endif
@@ -279,15 +286,7 @@ contains
 #ifndef _OPENACC
     ng = config%n_g_lw
 #endif
-  !$acc declare device_resident(trans_clear, source_up_clear, source_dn_clear, emission, albedo, &
-  !$acc& ref_clear, acc, is_clear_sky_layer, flux_up, flux_dn, flux_up_clear, flux_dn_clear, od_cloud_new, &
-  !$acc& gamma1, gamma2, od_total, ssa_total, g_total, source_up, source_dn, reflectance, transmittance, i_cloud_top)
 
-  !$acc data present(od, planck_hl, flux, flux%lw_up_clear, flux%lw_dn_clear, flux%lw_dn_surf_clear_g, flux%lw_up, flux%lw_dn, flux%lw_dn_surf_g,&
-  !$acc& cloud, cloud%fraction, config, config%i_band_from_reordered_g_lw, od_cloud, ssa_cloud, g_cloud, od_scaling)
-
-
-  !$acc parallel default(none) num_gangs(1) num_workers(NUM_WARPS) vector_length(WARP_SIZE)
   ! Clear-sky calculation
   if (config%do_lw_aerosol_scattering) then
     ! Scattering case: first compute clear-sky reflectance,
@@ -497,10 +496,6 @@ contains
     end if
 #endif
   end if ! Cloud is present in profile
-  !$acc end parallel
-  !$acc update host(flux%lw_up_clear(jcol,:), flux%lw_dn_clear(jcol,:), flux%lw_dn_surf_clear_g(:,jcol))
-  !$acc update host(flux%lw_up(jcol,:), flux%lw_dn(jcol,:), flux%lw_dn_surf_g(jcol,:))
-  !$acc end data
 
 #ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_mcica_lw:solver_mcica_lw_col',1,hook_handle)
@@ -518,5 +513,47 @@ contains
     res = sum(arr)
 
   end function
+
+#ifdef _OPENACC
+  subroutine init_gpu()
+    use :: iso_c_binding
+    use cudafor
+    use openacc
+    logical, save :: device_initialized = .False.
+    integer, parameter :: KB = 1024
+    integer, parameter :: MB = 1024 * KB
+    integer, parameter :: DEV_NUM = 0 ! Always pick up first found device
+    integer :: num_dev, istat
+    character*100 :: dev_name
+    integer(kind=cuda_count_kind) :: total_gpu_mem, heap_limit
+    integer :: cuda_status
+    integer(kind=c_int64_t) :: gpu_mem_size, gpu_mem_size_mb
+
+    !$omp critical
+    if (.not. device_initialized) then
+      num_dev = acc_get_num_devices(ACC_DEVICE_NVIDIA)
+      if (num_dev .lt. 1) then
+        print *, 'Error: There are no Nvidia GPU devices available on this host'
+        stop
+      endif
+      write(*,"(' Number of Nvidia GPU devices: ',i0)") num_dev
+      call acc_get_property_string(DEV_NUM, ACC_DEVICE_NVIDIA, ACC_PROPERTY_NAME, dev_name)
+      write(*,"(' Selecting device:             ',i0,' ""',a,'""')") DEV_NUM, dev_name
+      call acc_set_device_num(DEV_NUM, acc_device_nvidia)
+      gpu_mem_size = acc_get_property(DEV_NUM, ACC_DEVICE_NVIDIA, ACC_PROPERTY_MEMORY)
+      gpu_mem_size_mb = gpu_mem_size / (MB)
+      write(*,"(' Device memory size:           ',i0,'mb')") gpu_mem_size_mb
+      device_initialized = .True.
+      istat = cudaDeviceGetLimit(heap_limit, cudaLimitMallocHeapSize)
+      write(*,"(' Default CUDA heap size limit: ',i0,'mb')") (heap_limit / MB)
+      istat = cudaDeviceSetLimit(cudaLimitMallocHeapSize, gpu_mem_size / 2)
+      istat = cudaDeviceGetLimit(heap_limit, cudaLimitMallocHeapSize)
+      write(*,"(' New CUDA heap size limit:     ',i0,'mb')") (heap_limit / MB)
+    else
+      call acc_set_device_num(DEV_NUM, ACC_DEVICE_NVIDIA)
+    end if
+    !$omp end critical
+  end subroutine
+#endif
 
 end module radiation_mcica_lw
