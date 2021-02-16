@@ -188,6 +188,8 @@ contains
 
     real(jprb) :: hook_handle
 
+    !$acc routine worker
+
 #ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_adding_ica_lw:fast_adding_ica_lw',0,hook_handle)
 #endif
@@ -203,9 +205,11 @@ contains
     ! the entire earth/atmosphere system below that half-level, and
     ! also the "source", which is the upwelling flux due to emission
     ! below that level
+    !$acc loop seq
     do jlev = nlev,i_cloud_top,-1
       if (is_clear_sky_layer(jlev)) then
         ! Reflectance of this layer is zero, simplifying the expression
+        !$acc loop independent worker
         do jcol = 1,ncol
           albedo(jcol,jlev) = transmittance(jcol,jlev)*transmittance(jcol,jlev)*albedo(jcol,jlev+1)
           source(jcol,jlev) = source_up(jcol,jlev) &
@@ -214,6 +218,7 @@ contains
         end do
       else
         ! Loop over columns; explicit loop seems to be faster
+        !$acc loop independent worker
         do jcol = 1,ncol
           ! Lacis and Hansen (1974) Eq 33, Shonk & Hogan (2008) Eq 10:
           inv_denominator(jcol,jlev) = 1.0_jprb &
@@ -233,14 +238,17 @@ contains
     ! Compute the fluxes above the highest cloud
     flux_up(:,i_cloud_top) = source(:,i_cloud_top) &
          &                 + albedo(:,i_cloud_top)*flux_dn(:,i_cloud_top)
+    !$acc loop seq
     do jlev = i_cloud_top-1,1,-1
       flux_up(:,jlev) = transmittance(:,jlev)*flux_up(:,jlev+1) + source_up(:,jlev)
     end do
 
     ! Work back down through the atmosphere from cloud top computing
     ! the fluxes at each half-level
+    !$acc loop seq
     do jlev = i_cloud_top,nlev
       if (is_clear_sky_layer(jlev)) then
+        !$acc loop independent worker
         do jcol = 1,ncol
           flux_dn(jcol,jlev+1) = transmittance(jcol,jlev)*flux_dn(jcol,jlev) &
                &               + source_dn(jcol,jlev)
@@ -248,6 +256,7 @@ contains
                &               + source(jcol,jlev+1)
         end do
       else
+        !$acc loop independent worker
         do jcol = 1,ncol
           ! Shonk & Hogan (2008) Eq 14 (after simplification):
           flux_dn(jcol,jlev+1) &

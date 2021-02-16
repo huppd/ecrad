@@ -145,7 +145,8 @@ contains
     flux%cloud_cover_lw(istartcol:iendcol) = total_cloud_cover
 
     !$acc data copyin(od, ssa, g, od_cloud, ssa_cloud, g_cloud, planck_hl, emission, albedo,&
-    !$acc& flux, flux%lw_up_clear, flux%lw_dn_clear, flux%lw_dn_surf_clear_g)
+    !$acc& flux, flux%lw_up_clear, flux%lw_dn_clear, flux%lw_dn_surf_clear_g, flux%lw_up, flux%lw_dn, flux%lw_dn_surf_g,&
+    !$acc& config, config%i_band_from_reordered_g_lw, cloud, cloud%fraction, od_cloud, ssa_cloud, g_cloud,  od_scaling)
 
     ! Loop through columns
     do jcol = istartcol,iendcol
@@ -278,8 +279,12 @@ contains
 #ifndef _OPENACC
     ng = config%n_g_lw
 #endif
-  !$acc data present(od, planck_hl, flux, flux%lw_up_clear, flux%lw_dn_clear, flux%lw_dn_surf_clear_g) &
-  !$acc& copyin(trans_clear, source_up_clear, source_dn_clear, emission, albedo, flux_up_clear, flux_dn_clear, ref_clear, acc)
+  !$acc data present(od, planck_hl, flux, flux%lw_up_clear, flux%lw_dn_clear, flux%lw_dn_surf_clear_g, flux%lw_up, flux%lw_dn, flux%lw_dn_surf_g,&
+  !$acc& cloud, cloud%fraction, config, config%i_band_from_reordered_g_lw, od_cloud, ssa_cloud, g_cloud, od_scaling) &
+  !$acc& copyin(trans_clear, source_up_clear, source_dn_clear, emission, albedo, flux_up_clear, flux_dn_clear, &
+  !$acc& ref_clear, acc, is_clear_sky_layer, flux_up, flux_dn, flux_up_clear, flux_dn_clear, od_cloud_new, &
+  !$acc& gamma1, gamma2, od_total, ssa_total, g_total, source_up, source_dn, reflectance, transmittance, i_cloud_top)
+
   !$acc parallel default(none) num_gangs(1) num_workers(NUM_WARPS) vector_length(WARP_SIZE)
   ! Clear-sky calculation
   if (config%do_lw_aerosol_scattering) then
@@ -330,22 +335,17 @@ contains
     flux%lw_dn_clear(jcol,jlev) = sum_reduction(ng, flux_dn_clear(:, jlev))
   end do
 
-  !$acc end parallel
-  !$acc update host(trans_clear, source_up_clear, source_dn_clear, emission, albedo, flux_up_clear, flux_dn_clear, ref_clear)
-  !$acc update host(flux%lw_up_clear(jcol,:), flux%lw_dn_clear(jcol,:), flux%lw_dn_surf_clear_g(:,jcol))
-  !$acc end data
-
-
   ! Store surface spectral downwelling fluxes
   flux%lw_dn_surf_clear_g(:,jcol) = flux_dn_clear(:,nlev+1)
 
-
+#define _REMOVE
 
   if (total_cloud_cover >= config%cloud_fraction_threshold) then
     ! Total-sky calculation
 
     is_clear_sky_layer = .true.
     i_cloud_top = nlev+1
+    !$acc loop seq
     do jlev = 1,nlev
       ! Compute combined gas+aerosol+cloud optical properties
       if (cloud%fraction(jcol,jlev) >= config%cloud_fraction_threshold) then
@@ -360,7 +360,6 @@ contains
         od_total = od(:,jlev) + od_cloud_new
         ssa_total = 0.0_jprb
         g_total   = 0.0_jprb
-
         if (config%do_lw_cloud_scattering) then
           ! Scattering case: calculate reflectance and
           ! transmittance at each model level
@@ -385,6 +384,7 @@ contains
             end where
 #endif
           else
+            !$acc loop independent worker private(scat_od)
             do jg = 1,ng
               if (od_total(jg) > 0.0_jprb) then
                 scat_od = ssa_cloud(config%i_band_from_reordered_g_lw(jg),jlev) &
@@ -398,7 +398,6 @@ contains
               end if
             end do
           end if
-
           ! Compute cloudy-sky reflectance, transmittance etc at
           ! each model level
           call calc_two_stream_gammas_lw(ng, ssa_total, g_total, &
@@ -416,7 +415,6 @@ contains
                &  transmittance(:,jlev), source_up(:,jlev), source_dn(:,jlev))
 #endif
         end if
-
       else
         ! Clear-sky layer: copy over clear-sky values
         reflectance(:,jlev) = ref_clear(:,jlev)
@@ -425,7 +423,13 @@ contains
         source_dn(:,jlev) = source_dn_clear(:,jlev)
       end if
     end do
+  end if
+  !$acc end parallel
+  !$acc update host(trans_clear, source_up_clear, source_dn_clear, emission, albedo, flux_up_clear, flux_dn_clear, ref_clear)
+  !$acc update host(reflectance, transmittance, source_up, source_dn, is_clear_sky_layer, i_cloud_top, flux_up, flux_dn)
+  !$acc update host(flux%lw_up_clear(jcol,:), flux%lw_dn_clear(jcol,:), flux%lw_dn_surf_clear_g(:,jcol))
 
+  if (total_cloud_cover >= config%cloud_fraction_threshold) then
     if (config%do_lw_aerosol_scattering) then
       ! Use adding method to compute fluxes for an overcast sky,
       ! allowing for scattering in all layers
@@ -487,12 +491,15 @@ contains
     flux%lw_up(jcol,:) = flux%lw_up_clear(jcol,:)
     flux%lw_dn(jcol,:) = flux%lw_dn_clear(jcol,:)
     flux%lw_dn_surf_g(:,jcol) = flux%lw_dn_surf_clear_g(:,jcol)
+#ifndef _OPENACC
     if (config%do_lw_derivatives) then
       call calc_lw_derivatives_ica(ng, nlev, jcol, trans_clear, flux_up_clear(:,nlev+1), &
            &                       flux%lw_derivatives)
-
     end if
+#endif
   end if ! Cloud is present in profile
+  !!$acc update flux%lw_up(jcol,:), flux%lw_dn(jcol,:), flux%lw_dn_surf_g(jcol,:))
+  !$acc end data
 
 #ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_mcica_lw:solver_mcica_lw_col',1,hook_handle)
