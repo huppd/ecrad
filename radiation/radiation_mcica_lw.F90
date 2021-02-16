@@ -615,8 +615,8 @@ end subroutine generate_column_exp_exp_lr
       call radiation_abort()      
     end if
 
-call omptimer_mark('cloud_generator',0, &
-&   omphook_cloud_generator)
+!call omptimer_mark('cloud_generator',0, &
+!&   omphook_cloud_generator)
 
           ! Do cloudy-sky calculation; add a prime number to the seed in
       ! the longwave
@@ -631,8 +631,8 @@ call omptimer_mark('cloud_generator',0, &
            &  is_beta_overlap=config%use_beta_overlap)
       
 
-call omptimer_mark('cloud_generator',1, &
-&   omphook_cloud_generator)
+!call omptimer_mark('cloud_generator',1, &
+!&   omphook_cloud_generator)
 
 
     do jcol = istartcol, iendcol
@@ -671,9 +671,9 @@ call omptimer_mark('cloud_generator',1, &
     flux_up_mul_trans_sum(:,:) = 0.0
 
     do jg = 1,ng
-    call omptimer_mark('generate_column_exp_exp',0,omphook_generate_column_exp_exp)
-call omptimer_mark('cloud_generator',0, &
-&   omphook_cloud_generator)
+!    call omptimer_mark('generate_column_exp_exp',0,omphook_generate_column_exp_exp)
+!call omptimer_mark('cloud_generator',0, &
+!&   omphook_cloud_generator)
 
       do jcol=istartcol,iendcol
         if (total_cloud_cover(jcol) >= config%cloud_fraction_threshold) then
@@ -780,17 +780,17 @@ call omptimer_mark('cloud_generator',0, &
           end if      
         endif
       end do
-    call omptimer_mark('generate_column_exp_exp',1,omphook_generate_column_exp_exp)
-call omptimer_mark('cloud_generator',1, &
-&   omphook_cloud_generator)
+!    call omptimer_mark('generate_column_exp_exp',1,omphook_generate_column_exp_exp)
+!call omptimer_mark('cloud_generator',1, &
+!&   omphook_cloud_generator)
 
 
       ! Clear-sky calculation
       if (config%do_lw_aerosol_scattering) then
         ! Scattering case: first compute clear-sky reflectance,
         ! transmittance etc at each model level
-call omptimer_mark('calc_two_stream_gammas_lw',0, &
-&  omphook_calc_two_stream_gammas_lw) 
+!call omptimer_mark('calc_two_stream_gammas_lw',0, &
+!&  omphook_calc_two_stream_gammas_lw) 
         do jlev = 1,nlev
           ssa_total = ssa(:,jlev,jg)
           g_total   = g(:,jlev,jg)
@@ -855,11 +855,11 @@ call omptimer_mark('calc_two_stream_gammas_lw',0, &
  ! cos: END inline of calc_reflectance_transmittance_lw_lr
 
         end do
-call omptimer_mark('calc_two_stream_gammas_lw',1, &
-&  omphook_calc_two_stream_gammas_lw) 
+!call omptimer_mark('calc_two_stream_gammas_lw',1, &
+!&  omphook_calc_two_stream_gammas_lw) 
 
-call omptimer_mark('adding_ica_lw',0, &
-&   omphook_adding_ica_lw) 
+!call omptimer_mark('adding_ica_lw',0, &
+!&   omphook_adding_ica_lw) 
 
         ! Then use adding method to compute fluxes
         call adding_ica_lw_lr(istartcol, iendcol, nlev, &
@@ -867,13 +867,13 @@ call omptimer_mark('adding_ica_lw',0, &
              &  emission(:,jg), albedo(:,jg), &
              &  flux_up_clear(:,:), flux_dn_clear(:,:))
 
-call omptimer_mark('adding_ica_lw',1, &
-&   omphook_adding_ica_lw)         
+!call omptimer_mark('adding_ica_lw',1, &
+!&   omphook_adding_ica_lw)         
 
       else
 
-call omptimer_mark('calc_no_scattering_transmittance_lw',0, &
-&   omphook_calc_no_scattering_transmittance_lw)
+!call omptimer_mark('calc_no_scattering_transmittance_lw',0, &
+!&   omphook_calc_no_scattering_transmittance_lw)
 
         ! ! Non-scattering case: use simpler functions for
         ! ! transmission and emission
@@ -909,11 +909,11 @@ call omptimer_mark('calc_no_scattering_transmittance_lw',0, &
 
         end do
 
-call omptimer_mark('calc_no_scattering_transmittance_lw',1, &
-&   omphook_calc_no_scattering_transmittance_lw)
+!call omptimer_mark('calc_no_scattering_transmittance_lw',1, &
+!&   omphook_calc_no_scattering_transmittance_lw)
 
-call omptimer_mark('calc_fluxes_no_scattering_lw',0, &
-&   omphook_calc_fluxes_no_scattering_lw)
+!call omptimer_mark('calc_fluxes_no_scattering_lw',0, &
+!&   omphook_calc_fluxes_no_scattering_lw)
 
 
 ! cos: inline of calc_fluxes_no_scattering_lw_lr
@@ -941,8 +941,8 @@ call omptimer_mark('calc_fluxes_no_scattering_lw',0, &
  end do
 
         
-call omptimer_mark('calc_fluxes_no_scattering_lw',1, &
-&   omphook_calc_fluxes_no_scattering_lw)
+!call omptimer_mark('calc_fluxes_no_scattering_lw',1, &
+!&   omphook_calc_fluxes_no_scattering_lw)
 
 
 
@@ -968,8 +968,8 @@ call omptimer_mark('calc_fluxes_no_scattering_lw',1, &
           ! Scattering case: calculate reflectance and
           ! transmittance at each model level
 
-call omptimer_mark('set_scat_od',0, &
-&   omphook_set_scat_od)
+!call omptimer_mark('set_scat_od',0, &
+!&   omphook_set_scat_od)
 
           do jcol = istartcol,iendcol
             if ((total_cloud_cover(jcol) >= config%cloud_fraction_threshold) .and. &
@@ -1008,12 +1008,12 @@ call omptimer_mark('set_scat_od',0, &
             endif
           enddo
       
-call omptimer_mark('set_scat_od',1, &
-&   omphook_set_scat_od)
+!call omptimer_mark('set_scat_od',1, &
+!&   omphook_set_scat_od)
 
 
-call omptimer_mark('calc_two_stream_gammas_lw_b',0, &
-&   omphook_calc_two_stream_gammas_lw_b)
+!call omptimer_mark('calc_two_stream_gammas_lw_b',0, &
+!&   omphook_calc_two_stream_gammas_lw_b)
 
           ! Compute cloudy-sky reflectance, transmittance etc at
           ! each model level
@@ -1040,11 +1040,11 @@ end do
 
 
 
-call omptimer_mark('calc_two_stream_gammas_lw_b',1, &
-&   omphook_calc_two_stream_gammas_lw_b)
+!call omptimer_mark('calc_two_stream_gammas_lw_b',1, &
+!&   omphook_calc_two_stream_gammas_lw_b)
 
-call omptimer_mark('calc_reflectance_transmittance_lw',0, &
-&   omphook_calc_reflectance_transmittance_lw)
+!call omptimer_mark('calc_reflectance_transmittance_lw',0, &
+!&   omphook_calc_reflectance_transmittance_lw)
 
 
 ! cos: inline of calc_reflectance_transmittance_lw_cond_lr
@@ -1097,13 +1097,13 @@ end do
 
 
 
-call omptimer_mark('calc_reflectance_transmittance_lw',1, &
-&   omphook_calc_reflectance_transmittance_lw)
+!call omptimer_mark('calc_reflectance_transmittance_lw',1, &
+!&   omphook_calc_reflectance_transmittance_lw)
 
 
         else
-call omptimer_mark('calc_no_scattering_transmittance_lw_b',0, &
-&   omphook_calc_no_scattering_transmittance_lw_b)
+!call omptimer_mark('calc_no_scattering_transmittance_lw_b',0, &
+!&   omphook_calc_no_scattering_transmittance_lw_b)
 
 
           ! No-scattering case: use simpler functions for
@@ -1113,8 +1113,8 @@ call omptimer_mark('calc_no_scattering_transmittance_lw_b',0, &
                   & od_total, planck_hl(:,jlev,jg), planck_hl(:,jlev+1,jg), &
                   &  transmittance(:,jlev), source_up(:,jlev), source_dn(:,jlev))
 
-call omptimer_mark('calc_no_scattering_transmittance_lw_b',1, &
-&   omphook_calc_no_scattering_transmittance_lw_b)
+!call omptimer_mark('calc_no_scattering_transmittance_lw_b',1, &
+!&   omphook_calc_no_scattering_transmittance_lw_b)
 
 
         end if
@@ -1135,14 +1135,14 @@ call omptimer_mark('calc_no_scattering_transmittance_lw_b',1, &
       if (config%do_lw_aerosol_scattering) then
         ! Use adding method to compute fluxes for an overcast sky,
         ! allowing for scattering in all layers
-call omptimer_mark('adding_ica_lw_b',0, &
-&   omphook_adding_ica_lw_b)
+!call omptimer_mark('adding_ica_lw_b',0, &
+!&   omphook_adding_ica_lw_b)
 
         call adding_ica_lw_cond_lr(istartcol, iendcol, nlev, total_cloud_cover, config%cloud_fraction_threshold, &
 &          reflectance, transmittance(:,:), source_up, &
 &          source_dn, emission(:,jg), albedo(:,jg), flux_up(:,:), flux_dn(:,:))
-call omptimer_mark('adding_ica_lw_b',1, &
-&   omphook_adding_ica_lw_b)
+!call omptimer_mark('adding_ica_lw_b',1, &
+!&   omphook_adding_ica_lw_b)
 
 
       else if (config%do_lw_cloud_scattering) then
@@ -1153,8 +1153,8 @@ call omptimer_mark('adding_ica_lw_b',1, &
 !                 & source_dn(:,:,jcol), emission(:,jcol), albedo(:,jcol), is_clear_sky_layer(:,jcol), i_cloud_top(jcol), &
 !                 & flux_dn_clear(:,:,jcol), flux_up(:,:,jcol), flux_dn(:,:,jcol))
 
-call omptimer_mark('fast_adding_ica_lw',0, &
-&   omphook_fast_adding_ica_lw)
+!call omptimer_mark('fast_adding_ica_lw',0, &
+!&   omphook_fast_adding_ica_lw)
 
 ! cos: inline of fast_adding_ica_lw_lr
 !          call fast_adding_ica_lw_lr(istartcol,iendcol, nlev, total_cloud_cover, config%cloud_fraction_threshold, &
@@ -1260,8 +1260,8 @@ call omptimer_mark('fast_adding_ica_lw',0, &
 
 
 
-call omptimer_mark('fast_adding_ica_lw',1, &
-&   omphook_fast_adding_ica_lw)
+!call omptimer_mark('fast_adding_ica_lw',1, &
+!&   omphook_fast_adding_ica_lw)
 
 
       else
@@ -1270,15 +1270,15 @@ call omptimer_mark('fast_adding_ica_lw',1, &
         !      &  transmittance(:,:,jcol), source_up(:,:,jcol), source_dn(:,:,jcol), emission(:,jcol), albedo(:,jcol), &
         !      &  flux_up(:,:,jcol), flux_dn(:,:,jcol))
                         ! Simpler down-then-up method to compute fluxes
-call omptimer_mark('calc_fluxes_no_scattering_lw_b',0, &
-&   omphook_calc_fluxes_no_scattering_lw_b)
+!call omptimer_mark('calc_fluxes_no_scattering_lw_b',0, &
+!&   omphook_calc_fluxes_no_scattering_lw_b)
 
 
         call calc_fluxes_no_scattering_lw_cond_lr(istartcol,iendcol, nlev, total_cloud_cover, config%cloud_fraction_threshold, &
         &  transmittance(:,:), source_up, source_dn, emission(:,jg), albedo(:,jg), &
         &  flux_up(:,:), flux_dn(:,:))
-call omptimer_mark('calc_fluxes_no_scattering_lw_b',1, &
-&   omphook_calc_fluxes_no_scattering_lw_b)
+!call omptimer_mark('calc_fluxes_no_scattering_lw_b',1, &
+!&   omphook_calc_fluxes_no_scattering_lw_b)
 
 
       end if
@@ -1347,27 +1347,27 @@ call omptimer_mark('calc_fluxes_no_scattering_lw_b',1, &
         ! Compute the longwave derivatives needed by Hogan and Bozzo
         ! (2015) approximate radiation update scheme
         if (config%do_lw_derivatives) then
-call omptimer_mark('calc_lw_derivatives_ica',0, &
-&   omphook_calc_lw_derivatives_ica)
+!call omptimer_mark('calc_lw_derivatives_ica',0, &
+!&   omphook_calc_lw_derivatives_ica)
 
 
           call calc_lw_derivatives_ica_lr(ng, nlev, jcol, flux_up_sum(jcol,nlev+1), &
           &    flux_up_mul_trans_sum(jcol,:), flux%lw_derivatives)
-call omptimer_mark('calc_lw_derivatives_ica',1, &
-&   omphook_calc_lw_derivatives_ica)
+!call omptimer_mark('calc_lw_derivatives_ica',1, &
+!&   omphook_calc_lw_derivatives_ica)
 
 
 
           if (total_cloud_cover(jcol) < 1.0_jprb - config%cloud_fraction_threshold) then
             ! Modify the existing derivative with the contribution from the clear sky
-call omptimer_mark('modify_lw_derivatives_ica',0, &
-&   omphook_modify_lw_derivatives_ica)
+!call omptimer_mark('modify_lw_derivatives_ica',0, &
+!&   omphook_modify_lw_derivatives_ica)
 
             call modify_lw_derivatives_ica_lr2(ng, nlev, jcol, &
 &             flux_up_clear_sum(jcol,nlev+1), flux_up_mul_trans_clear_sum(jcol,:), &
 &             1.0_jprb-total_cloud_cover(jcol), flux%lw_derivatives)
-call omptimer_mark('modify_lw_derivatives_ica',1, &
-&   omphook_modify_lw_derivatives_ica)
+!call omptimer_mark('modify_lw_derivatives_ica',1, &
+!&   omphook_modify_lw_derivatives_ica)
 
 
           end if
