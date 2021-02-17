@@ -2,12 +2,13 @@ FC = pgf90
 CPPFLAGS = -Mpreprocess
 
 ifndef DEBUG
-OPTFLAGS = -O3 -acc -ta=nvidia
+OPTFLAGS = -O3
 else
 OPTFLAGS = -O0
 endif
 
 WARNFLAGS = -Minform=inform
-BASICFLAGS = -module ../mod -Mbyteswapio
+BASICFLAGS = -module ../mod -Mbyteswapio -I /opt/cray/pe/netcdf-hdf5parallel/4.7.4.0/pgi/20.1/include/
+LDFLAGS = -L /opt/cray/pe/netcdf-hdf5parallel/4.7.4.0/pgi/20.1/lib/ -lnetcdff
 DEBUGFLAGS = -g
 OMPFLAG = -mp=nonuma

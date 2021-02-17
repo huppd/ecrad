@@ -6,8 +6,8 @@ CPPFLAGS = -cpp
 
 # Basic flags such as where to write module files, and an instruction
 #  to read Fortran unformatted data files as big endian 
-BASICFLAGS = -J../mod -fconvert=big-endian -fno-range-check
-
+BASICFLAGS = -J../mod -fconvert=big-endian -fno-range-check -fopt-info-all -ffast-math -I/opt/cray/pe/netcdf/4.7.4.0/GNU/8.2/include 
+LDFLAGS =  -L/opt/cray/pe/netcdf/4.7.4.0/GNU/8.2/lib -lnetcdff -lnetcdf
 # OpenMP flag
 OMPFLAG = -fopenmp
 
@@ -15,7 +15,7 @@ ifndef DEBUG
 # --NORMAL CONFIGURATION--
 
 # Optimization flags
-OPTFLAGS = -O3  -fopt-info-all
+OPTFLAGS = -O3
 
 # Warning flags: all except those that warn about unused stuff
 WARNFLAGS = -Wall -Wno-unused-label -Wno-unused-dummy-argument -Wno-unused-variable
