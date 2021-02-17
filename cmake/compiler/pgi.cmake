@@ -22,6 +22,6 @@ set(GPU_TARGET_CC ":${GPU_ACC_TARGET_CC}")
 endif()
 
 if(GPU_ACC)
-    set(FC_BASIC_FLAGS "${FC_BASIC_FLAGS} -acc -ta=tesla${GPU_TARGET_CC},rdc -Mcuda=ptxinfo -Minfo=accel -Mipa")
+    set(FC_BASIC_FLAGS "${FC_BASIC_FLAGS} -acc -ta=tesla${GPU_TARGET_CC},maxregcount:${GPU_ACC_TARGET_MAXREGCOUNT},rdc -Mcuda=ptxinfo -Minfo=accel -Mipa")
 endif()
 

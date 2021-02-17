@@ -43,6 +43,7 @@ find_package(NetCDF REQUIRED)
 option(GPU_ACC "Compile for GPU target using OpenACC" OFF)
 
 set(GPU_ACC_TARGET_CC "" CACHE STRING "Compute capability of the GPU target")
+set(GPU_ACC_TARGET_MAXREGCOUNT "32" CACHE STRING "Maximum number of registers per thread for GPU target")
 
 if("${CMAKE_Fortran_COMPILER_ID}" MATCHES "PGI")
   include(cmake/compiler/pgi.cmake)
