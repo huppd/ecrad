@@ -539,7 +539,9 @@ contains
       write(*,"(' Number of Nvidia GPU devices: ',i0)") num_dev
       call acc_get_property_string(DEV_NUM, ACC_DEVICE_NVIDIA, ACC_PROPERTY_NAME, dev_name)
       write(*,"(' Selecting device:             ',i0,' ""',a,'""')") DEV_NUM, dev_name
-      call acc_set_device_num(DEV_NUM, acc_device_nvidia)
+      if (acc_get_device_num(ACC_DEVICE_NVIDIA) /= DEV_NUM) then
+        call acc_set_device_num(DEV_NUM, acc_device_nvidia)
+      end if
       gpu_mem_size = acc_get_property(DEV_NUM, ACC_DEVICE_NVIDIA, ACC_PROPERTY_MEMORY)
       gpu_mem_size_mb = gpu_mem_size / (MB)
       write(*,"(' Device memory size:           ',i0,'mb')") gpu_mem_size_mb
@@ -550,7 +552,9 @@ contains
       istat = cudaDeviceGetLimit(heap_limit, cudaLimitMallocHeapSize)
       write(*,"(' New CUDA heap size limit:     ',i0,'mb')") (heap_limit / MB)
     else
-      call acc_set_device_num(DEV_NUM, ACC_DEVICE_NVIDIA)
+      if (acc_get_device_num(ACC_DEVICE_NVIDIA) /= DEV_NUM) then
+        call acc_set_device_num(DEV_NUM, ACC_DEVICE_NVIDIA)
+      end if
     end if
     !$omp end critical
   end subroutine
