@@ -2,7 +2,7 @@ FC = pgf90
 CPPFLAGS = -Mpreprocess
 
 ifndef DEBUG
-OPTFLAGS = -O3 -acc -ta=nvidia
+OPTFLAGS = -O3 -acc -ta=nvidia,cc70 -Mcuda
 else
 OPTFLAGS = -O0
 endif
