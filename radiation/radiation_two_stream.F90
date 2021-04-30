@@ -41,7 +41,7 @@ module radiation_two_stream
   ! The routines in this module can be called millions of times, so
   !calling Dr Hook for each one may be a significant overhead.
   !Uncomment the following to turn Dr Hook on.
-#define DO_DR_HOOK_TWO_STREAM
+! #define DO_DR_HOOK_TWO_STREAM
 
 contains
 
@@ -65,7 +65,7 @@ contains
   !---------------------------------------------------------------------
   ! Calculate the two-stream coefficients gamma1 and gamma2 for the
   ! longwave
-  subroutine calc_two_stream_gammas_lw(ng, ssa, g, &
+  pure subroutine calc_two_stream_gammas_lw(ng, ssa, g, &
        &                               gamma1, gamma2)
 
 #ifdef DO_DR_HOOK_TWO_STREAM
@@ -74,8 +74,8 @@ contains
 
     integer, intent(in) :: ng
     ! Sngle scattering albedo and asymmetry factor:
-    real(jprb), intent(in),  dimension(:) :: ssa, g
-    real(jprb), intent(out), dimension(:) :: gamma1, gamma2
+    real(jprb), intent(in),  dimension(1:ng) :: ssa, g
+    real(jprb), intent(out), dimension(1:ng) :: gamma1, gamma2
 
     real(jprb) :: factor
 
@@ -86,7 +86,9 @@ contains
 
     if (lhook) call dr_hook('radiation_two_stream:calc_two_stream_gammas_lw',0,hook_handle)
 #endif
+    !$acc routine worker
 
+    !$acc loop independent worker
     do jg = 1, ng
       ! Fu et al. (1997), Eq 2.9 and 2.10:
       !      gamma1(jg) = LwDiffusivity * (1.0_jprb - 0.5_jprb*ssa(jg) &
@@ -203,7 +205,9 @@ contains
 
     if (lhook) call dr_hook('radiation_two_stream:calc_reflectance_transmittance_lw',0,hook_handle)
 #endif
+    !$acc routine worker
 
+    !$acc loop independent worker
     do jg = 1, ng
       if (od(jg) > 1.0e-3_jprd) then
         k_exponent = sqrt(max((gamma1(jg) - gamma2(jg)) * (gamma1(jg) + gamma2(jg)), &
@@ -357,7 +361,9 @@ contains
 
     if (lhook) call dr_hook('radiation_two_stream:calc_no_scattering_transmittance_lw',0,hook_handle)
 #endif
+    !$acc routine worker
 
+    !$acc loop worker
     do jg = 1, ng
       ! Compute upward and downward emission assuming the Planck
       ! function to vary linearly with optical depth within the layer
@@ -392,7 +398,7 @@ contains
     !    end do
 
 #ifdef DO_DR_HOOK_TWO_STREAM
-    if (lhook) call dr_hook('radiation_two_stream:calc_no_scattering_transmittance_lw',1,hook_handle)
+    ! if (lhook) call dr_hook('radiation_two_stream:calc_no_scattering_transmittance_lw',1,hook_handle)
 #endif
 
   end subroutine calc_no_scattering_transmittance_lw

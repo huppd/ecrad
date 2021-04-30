@@ -43,7 +43,7 @@ contains
     use parkind1, only           : jprb
     use yomhook,  only           : lhook, dr_hook
 
-    use radiation_io,   only           : nulerr, radiation_abort
+    use radiation_io,   only           : nulout, nulerr, radiation_abort
     use radiation_config, only         : config_type
     use radiation_single_level, only   : single_level_type
     use radiation_cloud, only          : cloud_type
@@ -94,15 +94,17 @@ contains
 
     ! Diffuse reflectance and transmittance for each layer in clear
     ! and all skies
-    real(jprb), dimension(config%n_g_lw, nlev) :: ref_clear, trans_clear, reflectance, transmittance
+    real(jprb), dimension(config%n_g_lw, nlev) :: ref_clear, reflectance, transmittance 
+    real(jprb), dimension(config%n_g_lw, nlev, istartcol:iendcol) :: trans_clear ! added jcol
 
     ! Emission by a layer into the upwelling or downwelling diffuse
     ! streams, in clear and all skies
-    real(jprb), dimension(config%n_g_lw, nlev) :: source_up_clear, source_dn_clear, source_up, source_dn
+    real(jprb), dimension(config%n_g_lw, nlev, istartcol:iendcol) :: source_up_clear, source_dn_clear ! added jcol to source_up/dn_clear for breaking up the loop
+    real(jprb), dimension(config%n_g_lw, nlev) :: source_up, source_dn
 
     ! Fluxes per g point
     real(jprb), dimension(config%n_g_lw, nlev+1) :: flux_up, flux_dn
-    real(jprb), dimension(config%n_g_lw, nlev+1) :: flux_up_clear, flux_dn_clear
+    real(jprb), dimension(config%n_g_lw, nlev+1, istartcol:iendcol) :: flux_up_clear, flux_dn_clear ! added jcol for breaking up the loop
 
     ! Combined gas+aerosol+cloud optical depth, single scattering
     ! albedo and asymmetry factor
@@ -137,6 +139,10 @@ contains
     ! Loop indices for level, column and g point
     integer :: jlev, jcol, jg
 
+    ! Start/stop time in seconds
+    real(jprb) :: tstart, tstop
+    double precision, external :: omp_get_wtime
+
     real(jprb) :: hook_handle
 
     if (lhook) call dr_hook('radiation_mcica_lw:solver_mcica_lw',0,hook_handle)
@@ -148,54 +154,73 @@ contains
 
     ng = config%n_g_lw
 
+    !$ACC DATA COPYIN(albedo, emission, flux_up_clear, flux_dn_clear, g_total, g, ssa_total, ssa, gamma2, gamma1, ref_clear, source_dn_clear, source_up_clear, trans_clear, od, planck_hl)
+    tstart = omp_get_wtime()
+
     ! Loop through columns
+    !$acc parallel DEFAULT(none)
+    !$acc loop independent gang
     do jcol = istartcol,iendcol
 
       ! Clear-sky calculation
       if (config%do_lw_aerosol_scattering) then
         ! Scattering case: first compute clear-sky reflectance,
         ! transmittance etc at each model level
+        !$acc loop independent worker
         do jlev = 1,nlev
-          ssa_total = ssa(:,jlev,jcol)
-          g_total   = g(:,jlev,jcol)
-          call calc_two_stream_gammas_lw(ng, ssa_total, g_total, &
+          ! ssa_total = ssa(:,jlev,jcol)
+          ! g_total   = g(:,jlev,jcol)
+          call calc_two_stream_gammas_lw(ng, ssa(:,jlev,jcol), g(:,jlev,jcol), &
                &  gamma1, gamma2)
           call calc_reflectance_transmittance_lw(ng, &
                &  od(:,jlev,jcol), gamma1, gamma2, &
                &  planck_hl(:,jlev,jcol), planck_hl(:,jlev+1,jcol), &
-               &  ref_clear(:,jlev), trans_clear(:,jlev), &
-               &  source_up_clear(:,jlev), source_dn_clear(:,jlev))
+               &  ref_clear(:,jlev), trans_clear(:,jlev,jcol), &
+               &  source_up_clear(:,jlev,jcol), source_dn_clear(:,jlev,jcol))
         end do
         ! Then use adding method to compute fluxes
         call adding_ica_lw(ng, nlev, &
-             &  ref_clear, trans_clear, source_up_clear, source_dn_clear, &
+             &  ref_clear, trans_clear(:,:,jcol), source_up_clear(:,:,jcol), source_dn_clear(:,:,jcol), &
              &  emission(:,jcol), albedo(:,jcol), &
-             &  flux_up_clear, flux_dn_clear)
+             &  flux_up_clear(:,:,jcol), flux_dn_clear(:,:,jcol))
         
       else
         ! Non-scattering case: use simpler functions for
         ! transmission and emission
+        !$acc loop seq 
         do jlev = 1,nlev
           call calc_no_scattering_transmittance_lw(ng, od(:,jlev,jcol), &
                &  planck_hl(:,jlev,jcol), planck_hl(:,jlev+1, jcol), &
-               &  trans_clear(:,jlev), source_up_clear(:,jlev), source_dn_clear(:,jlev))
+               &  trans_clear(:,jlev,jcol), source_up_clear(:,jlev,jcol), source_dn_clear(:,jlev,jcol))
         end do
+
         ! Simpler down-then-up method to compute fluxes
         call calc_fluxes_no_scattering_lw(ng, nlev, &
-             &  trans_clear, source_up_clear, source_dn_clear, &
+             &  trans_clear(:,:,jcol), source_up_clear(:,:,jcol), source_dn_clear(:,:,jcol), &
              &  emission(:,jcol), albedo(:,jcol), &
-             &  flux_up_clear, flux_dn_clear)
+             &  flux_up_clear(:,:,jcol), flux_dn_clear(:,:,jcol))
         
         ! Ensure that clear-sky reflectance is zero since it may be
         ! used in cloudy-sky case
         ref_clear = 0.0_jprb
       end if
 
+    end do ! jcol
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !$acc end parallel
+    tstop= omp_get_wtime()
+    write(nulout, '(a,g11.5,a)') 'Time elapsed in mcica_lw: ', tstop-tstart, ' seconds'
+    !$acc update host(flux_dn_clear, flux_up_clear, trans_clear, source_up_clear, source_dn_clear)
+    !$acc end data
+
+    do jcol = istartcol,iendcol
+
       ! Sum over g-points to compute broadband fluxes
-      flux%lw_up_clear(jcol,:) = sum(flux_up_clear,1)
-      flux%lw_dn_clear(jcol,:) = sum(flux_dn_clear,1)
+      flux%lw_up_clear(jcol,:) = sum(flux_up_clear(:,:,jcol),1)
+      flux%lw_dn_clear(jcol,:) = sum(flux_dn_clear(:,:,jcol),1)
       ! Store surface spectral downwelling fluxes
-      flux%lw_dn_surf_clear_g(:,jcol) = flux_dn_clear(:,nlev+1)
+      flux%lw_dn_surf_clear_g(:,jcol) = flux_dn_clear(:,nlev+1,jcol)
+
 
       ! Do cloudy-sky calculation; add a prime number to the seed in
       ! the longwave
@@ -285,9 +310,9 @@ contains
           else
             ! Clear-sky layer: copy over clear-sky values
             reflectance(:,jlev) = ref_clear(:,jlev)
-            transmittance(:,jlev) = trans_clear(:,jlev)
-            source_up(:,jlev) = source_up_clear(:,jlev)
-            source_dn(:,jlev) = source_dn_clear(:,jlev)
+            transmittance(:,jlev) = trans_clear(:,jlev,jcol)
+            source_up(:,jlev) = source_up_clear(:,jlev,jcol)
+            source_dn(:,jlev) = source_dn_clear(:,jlev,jcol)
           end if
         end do
         
@@ -305,7 +330,7 @@ contains
 !               &  flux_up, flux_dn)
           call fast_adding_ica_lw(ng, nlev, reflectance, transmittance, source_up, source_dn, &
                &  emission(:,jcol), albedo(:,jcol), &
-               &  is_clear_sky_layer, i_cloud_top, flux_dn_clear, &
+               &  is_clear_sky_layer, i_cloud_top, flux_dn_clear(:,:,jcol), &
                &  flux_up, flux_dn)
         else
           ! Simpler down-then-up method to compute fluxes
@@ -335,7 +360,7 @@ contains
                &                       flux%lw_derivatives)
           if (total_cloud_cover < 1.0_jprb - config%cloud_fraction_threshold) then
             ! Modify the existing derivative with the contribution from the clear sky
-            call modify_lw_derivatives_ica(ng, nlev, jcol, trans_clear, flux_up_clear(:,nlev+1), &
+            call modify_lw_derivatives_ica(ng, nlev, jcol, trans_clear(:,:,jcol), flux_up_clear(:,nlev+1,jcol), &
                  &                         1.0_jprb-total_cloud_cover, flux%lw_derivatives)
           end if
         end if
@@ -347,12 +372,12 @@ contains
         flux%lw_dn(jcol,:) = flux%lw_dn_clear(jcol,:)
         flux%lw_dn_surf_g(:,jcol) = flux%lw_dn_surf_clear_g(:,jcol)
         if (config%do_lw_derivatives) then
-          call calc_lw_derivatives_ica(ng, nlev, jcol, trans_clear, flux_up_clear(:,nlev+1), &
+          call calc_lw_derivatives_ica(ng, nlev, jcol, trans_clear(:,:,jcol), flux_up_clear(:,nlev+1,jcol), &
                &                       flux%lw_derivatives)
  
         end if
       end if ! Cloud is present in profile
-    end do
+    end do ! jcol
 
     if (lhook) call dr_hook('radiation_mcica_lw:solver_mcica_lw',1,hook_handle)
     

@@ -70,9 +70,11 @@ contains
     integer :: jlev, jcol
 
     real(jprb) :: hook_handle
+    !$acc routine worker
 
+  #ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_adding_ica_lw:adding_ica_lw',0,hook_handle)
-
+  #endif
     albedo(:,nlev+1) = albedo_surf
 
     ! At the surface, the source is thermal emission
@@ -82,6 +84,7 @@ contains
     ! the entire earth/atmosphere system below that half-level, and
     ! also the "source", which is the upwelling flux due to emission
     ! below that level
+    !$acc loop seq
     do jlev = nlev,1,-1
       ! Next loop over columns. We could do this by indexing the
       ! entire inner dimension as follows, e.g. for the first line:
@@ -89,6 +92,7 @@ contains
       ! and similarly for subsequent lines, but this slows down the
       ! routine by a factor of 2!  Rather, we do it with an explicit
       ! loop.
+      !$acc loop independent worker
       do jcol = 1,ncol
         ! Lacis and Hansen (1974) Eq 33, Shonk & Hogan (2008) Eq 10:
         inv_denominator(jcol,jlev) = 1.0_jprb &
@@ -113,7 +117,9 @@ contains
 
     ! Work back down through the atmosphere computing the fluxes at
     ! each half-level
+    !$acc loop seq
     do jlev = 1,nlev
+      !$acc loop independent worker
       do jcol = 1,ncol
         ! Shonk & Hogan (2008) Eq 14 (after simplification):
         flux_dn(jcol,jlev+1) &
@@ -126,7 +132,9 @@ contains
       end do
     end do
 
+  #ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_adding_ica_lw:adding_ica_lw',1,hook_handle)
+  #endif
 
   end subroutine adding_ica_lw
 
@@ -295,17 +303,21 @@ contains
     real(jprb), intent(out), dimension(ncol, nlev+1) :: flux_up, flux_dn
     
     ! Loop index for model level
-    integer :: jlev
+    integer :: jcol, jlev
 
     real(jprb) :: hook_handle
 
-    if (lhook) call dr_hook('radiation_adding_ica_lw:calc_fluxes_no_scattering_lw',0,hook_handle)
+    !$acc routine worker
 
+  #ifdef DR_HOOK
+    if (lhook) call dr_hook('radiation_adding_ica_lw:calc_fluxes_no_scattering_lw',0,hook_handle)
+  #endif
     ! At top-of-atmosphere there is no diffuse downwelling radiation
     flux_dn(:,1) = 0.0_jprb
 
     ! Work down through the atmosphere computing the downward fluxes
     ! at each half-level
+    !$acc loop seq
     do jlev = 1,nlev
       flux_dn(:,jlev+1) = transmittance(:,jlev)*flux_dn(:,jlev) + source_dn(:,jlev)
     end do
@@ -315,12 +327,14 @@ contains
 
     ! Work back up through the atmosphere computing the upward fluxes
     ! at each half-level
+    !$acc loop seq
     do jlev = nlev,1,-1
       flux_up(:,jlev) = transmittance(:,jlev)*flux_up(:,jlev+1) + source_up(:,jlev)
     end do
     
+#ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_adding_ica_lw:calc_fluxes_no_scattering_lw',1,hook_handle)
-
+#endif
   end subroutine calc_fluxes_no_scattering_lw
 
 end module radiation_adding_ica_lw
