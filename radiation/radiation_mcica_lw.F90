@@ -20,6 +20,8 @@
 
 module radiation_mcica_lw
 
+    use omptimer, only           : omptimer_mark
+
   public
 
 contains
@@ -145,6 +147,9 @@ contains
 
     real(jprb) :: hook_handle
 
+    real(jprb) :: omphook_handle
+
+
     if (lhook) call dr_hook('radiation_mcica_lw:solver_mcica_lw',0,hook_handle)
 
     if (.not. config%do_clear) then
@@ -155,7 +160,8 @@ contains
     ng = config%n_g_lw
 
     !$ACC DATA COPYIN(albedo, emission, flux_up_clear, flux_dn_clear, g_total, g, ssa_total, ssa, gamma2, gamma1, ref_clear, source_dn_clear, source_up_clear, trans_clear, od, planck_hl)
-    tstart = omp_get_wtime()
+    !! acc sync?
+    call omptimer_mark('Solver MCICA part',0,omphook_handle)
 
     ! Loop through columns
     !$acc parallel DEFAULT(none)
@@ -208,8 +214,8 @@ contains
     end do ! jcol
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !$acc end parallel
-    tstop= omp_get_wtime()
-    write(nulout, '(a,g11.5,a)') 'Time elapsed in mcica_lw: ', tstop-tstart, ' seconds'
+    !! acc sync
+    call omptimer_mark('Solver MCICA part',1,omphook_handle)
     !$acc update host(flux_dn_clear, flux_up_clear, trans_clear, source_up_clear, source_dn_clear)
     !$acc end data
 
