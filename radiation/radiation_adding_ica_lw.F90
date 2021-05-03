@@ -72,9 +72,9 @@ contains
     real(jprb) :: hook_handle
     !$acc routine worker
 
-  #ifdef DR_HOOK
+#ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_adding_ica_lw:adding_ica_lw',0,hook_handle)
-  #endif
+#endif
     albedo(:,nlev+1) = albedo_surf
 
     ! At the surface, the source is thermal emission
@@ -132,9 +132,9 @@ contains
       end do
     end do
 
-  #ifdef DR_HOOK
+#ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_adding_ica_lw:adding_ica_lw',1,hook_handle)
-  #endif
+#endif
 
   end subroutine adding_ica_lw
 
@@ -309,9 +309,9 @@ contains
 
     !$acc routine worker
 
-  #ifdef DR_HOOK
+#ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_adding_ica_lw:calc_fluxes_no_scattering_lw',0,hook_handle)
-  #endif
+#endif
     ! At top-of-atmosphere there is no diffuse downwelling radiation
     flux_dn(:,1) = 0.0_jprb
 
