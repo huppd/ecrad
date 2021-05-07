@@ -159,41 +159,47 @@ contains
 
     ng = config%n_g_lw
 
+    ! write(*,*)
+    ! write(*, '(A80,I10)'), 'ng: ', ng
     ! write(*, '(A80,I10)'), 'nlev: ', nlev
+    ! write(*,*)
 
-    !$ACC DATA CREATE(gamma1, gamma2, flux_up_clear, flux_dn_clear, ref_clear, source_dn_clear, source_up_clear, trans_clear) COPYIN(albedo, emission, g, ssa, od, planck_hl)
+    ! $ACC DATA CREATE(gamma1, gamma2, flux_up_clear, flux_dn_clear, ref_clear, source_dn_clear, source_up_clear, trans_clear) COPYIN(albedo, emission, g, ssa, od, planck_hl)
+    !$ACC DATA CREATE(flux_up_clear, flux_dn_clear,  source_dn_clear, source_up_clear, trans_clear) COPYIN(albedo, emission,  od, planck_hl)
     ! $ACC sync
     call omptimer_mark('Solver MCICA part',0,omphook_handle)
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! start the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Loop through columns
-    !$acc parallel DEFAULT(none) num_workers(5)
+    !$acc parallel DEFAULT(none) num_workers(1) vector_length(32)
     !$acc loop independent gang 
     do jcol = istartcol,iendcol
 
-      ! Clear-sky calculation
-      if (config%do_lw_aerosol_scattering) then
-        ! Scattering case: first compute clear-sky reflectance,
-        ! transmittance etc at each model level
-        !$acc loop independent 
-        do jlev = 1,nlev
-          ! ssa_total = ssa(:,jlev,jcol)
-          ! g_total   = g(:,jlev,jcol)
-          call calc_two_stream_gammas_lw(ng, ssa(:,jlev,jcol), g(:,jlev,jcol), &
-               &  gamma1, gamma2)
-          call calc_reflectance_transmittance_lw(ng, &
-               &  od(:,jlev,jcol), gamma1, gamma2, &
-               &  planck_hl(:,jlev,jcol), planck_hl(:,jlev+1,jcol), &
-               &  ref_clear(:,jlev), trans_clear(:,jlev,jcol), &
-               &  source_up_clear(:,jlev,jcol), source_dn_clear(:,jlev,jcol))
-        end do
-        ! Then use adding method to compute fluxes
-        call adding_ica_lw(ng, nlev, &
-             &  ref_clear, trans_clear(:,:,jcol), source_up_clear(:,:,jcol), source_dn_clear(:,:,jcol), &
-             &  emission(:,jcol), albedo(:,jcol), &
-             &  flux_up_clear(:,:,jcol), flux_dn_clear(:,:,jcol))
+! #ifndef _OPENACC
+!       ! Clear-sky calculation
+!       if (config%do_lw_aerosol_scattering) then
+!         ! Scattering case: first compute clear-sky reflectance,
+!         ! transmittance etc at each model level
+!         !$acc loop independent 
+!         do jlev = 1,nlev
+!           ! ssa_total = ssa(:,jlev,jcol)
+!           ! g_total   = g(:,jlev,jcol)
+!           call calc_two_stream_gammas_lw(ng, ssa(:,jlev,jcol), g(:,jlev,jcol), &
+!                &  gamma1, gamma2)
+!           call calc_reflectance_transmittance_lw(ng, &
+!                &  od(:,jlev,jcol), gamma1, gamma2, &
+!                &  planck_hl(:,jlev,jcol), planck_hl(:,jlev+1,jcol), &
+!                &  ref_clear(:,jlev), trans_clear(:,jlev,jcol), &
+!                &  source_up_clear(:,jlev,jcol), source_dn_clear(:,jlev,jcol))
+!         end do
+!         ! Then use adding method to compute fluxes
+!         call adding_ica_lw(ng, nlev, &
+!              &  ref_clear, trans_clear(:,:,jcol), source_up_clear(:,:,jcol), source_dn_clear(:,:,jcol), &
+!              &  emission(:,jcol), albedo(:,jcol), &
+!              &  flux_up_clear(:,:,jcol), flux_dn_clear(:,:,jcol))
         
-      else
+!       else
+! #endif
         ! Non-scattering case: use simpler functions for
         ! transmission and emission
         !$acc loop independent
@@ -211,8 +217,10 @@ contains
         
         ! Ensure that clear-sky reflectance is zero since it may be
         ! used in cloudy-sky case
-        ref_clear = 0.0_jprb
-      end if
+! #ifndef _OPENACC
+!         ref_clear = 0.0_jprb
+!       end if
+! #endif
 
     end do ! jcol
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

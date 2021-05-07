@@ -368,7 +368,7 @@ contains
       ! Compute upward and downward emission assuming the Planck
       ! function to vary linearly with optical depth within the layer
       ! (e.g. Wiscombe , JQSRT 1976).
-      if (od(jg) > 1.0e-3) then
+      ! if (od(jg) > 1.0e-3) then
         ! Simplified from calc_reflectance_transmittance_lw above
         coeff = LwDiffusivity*od(jg)
         transmittance(jg) = exp_fast(-coeff)
@@ -379,13 +379,13 @@ contains
         coeff_dn_bot  = -coeff + planck_bot(jg)
         source_up(jg) =  coeff_up_top - transmittance(jg) * coeff_up_bot
         source_dn(jg) =  coeff_dn_bot - transmittance(jg) * coeff_dn_top
-      else
-        ! Linear limit at low optical depth
-        coeff = LwDiffusivity*od(jg)
-        transmittance(jg) = 1.0_jprb - coeff
-        source_up(jg) = coeff * 0.5_jprb * (planck_top(jg)+planck_bot(jg))
-        source_dn(jg) = source_up(jg)
-      end if
+      ! else
+      !   ! Linear limit at low optical depth
+      !   coeff = LwDiffusivity*od(jg)
+      !   transmittance(jg) = 1.0_jprb - coeff
+      !   source_up(jg) = coeff * 0.5_jprb * (planck_top(jg)+planck_bot(jg))
+      !   source_dn(jg) = source_up(jg)
+      ! end if
     end do
 
     ! Method in the older IFS radiation scheme
