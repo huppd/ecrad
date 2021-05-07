@@ -7,7 +7,7 @@ else
 OPTFLAGS = -O0
 endif
 
-WARNFLAGS = -Minform=inform -Minfo=accel
+WARNFLAGS = -Minform=inform -Minfo=accel,inline
 BASICFLAGS = -module ../mod -Mbyteswapio
 #LDFLAGS = -acc
 DEBUGFLAGS = -g

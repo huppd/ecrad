@@ -171,13 +171,13 @@ contains
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! start the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Loop through columns
-    !$acc parallel DEFAULT(none) num_workers(1) vector_length(32)
+    !$acc parallel DEFAULT(none) num_workers(5) vector_length(32)
     !$acc loop independent gang 
     do jcol = istartcol,iendcol
 
 ! #ifndef _OPENACC
-!       ! Clear-sky calculation
-!       if (config%do_lw_aerosol_scattering) then
+      ! Clear-sky calculation
+      if (config%do_lw_aerosol_scattering) then
 !         ! Scattering case: first compute clear-sky reflectance,
 !         ! transmittance etc at each model level
 !         !$acc loop independent 
@@ -198,7 +198,7 @@ contains
 !              &  emission(:,jcol), albedo(:,jcol), &
 !              &  flux_up_clear(:,:,jcol), flux_dn_clear(:,:,jcol))
         
-!       else
+      else
 ! #endif
         ! Non-scattering case: use simpler functions for
         ! transmission and emission
@@ -219,7 +219,7 @@ contains
         ! used in cloudy-sky case
 ! #ifndef _OPENACC
 !         ref_clear = 0.0_jprb
-!       end if
+      end if
 ! #endif
 
     end do ! jcol
