@@ -159,20 +159,23 @@ contains
 
     ng = config%n_g_lw
 
-    !$ACC DATA COPYIN(albedo, emission, flux_up_clear, flux_dn_clear, g_total, g, ssa_total, ssa, gamma2, gamma1, ref_clear, source_dn_clear, source_up_clear, trans_clear, od, planck_hl)
-    !! acc sync?
+    ! write(*, '(A80,I10)'), 'nlev: ', nlev
+
+    !$ACC DATA CREATE(gamma1, gamma2, flux_up_clear, flux_dn_clear, ref_clear, source_dn_clear, source_up_clear, trans_clear) COPYIN(albedo, emission, g, ssa, od, planck_hl)
+    ! $ACC sync
     call omptimer_mark('Solver MCICA part',0,omphook_handle)
 
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! start the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Loop through columns
-    !$acc parallel DEFAULT(none)
-    !$acc loop independent gang
+    !$acc parallel DEFAULT(none) num_workers(5)
+    !$acc loop independent gang 
     do jcol = istartcol,iendcol
 
       ! Clear-sky calculation
       if (config%do_lw_aerosol_scattering) then
         ! Scattering case: first compute clear-sky reflectance,
         ! transmittance etc at each model level
-        !$acc loop independent worker
+        !$acc loop independent 
         do jlev = 1,nlev
           ! ssa_total = ssa(:,jlev,jcol)
           ! g_total   = g(:,jlev,jcol)
@@ -193,7 +196,7 @@ contains
       else
         ! Non-scattering case: use simpler functions for
         ! transmission and emission
-        !$acc loop seq 
+        !$acc loop independent
         do jlev = 1,nlev
           call calc_no_scattering_transmittance_lw(ng, od(:,jlev,jcol), &
                &  planck_hl(:,jlev,jcol), planck_hl(:,jlev+1, jcol), &
@@ -214,7 +217,7 @@ contains
     end do ! jcol
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !$acc end parallel
-    !! acc sync
+    !$acc wait
     call omptimer_mark('Solver MCICA part',1,omphook_handle)
     !$acc update host(flux_dn_clear, flux_up_clear, trans_clear, source_up_clear, source_dn_clear)
     !$acc end data

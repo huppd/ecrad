@@ -70,11 +70,12 @@ contains
     integer :: jlev, jcol
 
     real(jprb) :: hook_handle
-    !$acc routine worker
 
 #ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_adding_ica_lw:adding_ica_lw',0,hook_handle)
 #endif
+    !$acc routine worker
+
     albedo(:,nlev+1) = albedo_surf
 
     ! At the surface, the source is thermal emission
@@ -307,29 +308,44 @@ contains
 
     real(jprb) :: hook_handle
 
-    !$acc routine worker
-
 #ifdef DR_HOOK
     if (lhook) call dr_hook('radiation_adding_ica_lw:calc_fluxes_no_scattering_lw',0,hook_handle)
 #endif
+    !$acc routine worker
+
     ! At top-of-atmosphere there is no diffuse downwelling radiation
-    flux_dn(:,1) = 0.0_jprb
+    !$acc loop independent
+    do jcol = 1,ncol
+      flux_dn(jcol,1) = 0.0_jprb
+    end do
+
 
     ! Work down through the atmosphere computing the downward fluxes
     ! at each half-level
+    !worker vector tile(32,4)
     !$acc loop seq
     do jlev = 1,nlev
-      flux_dn(:,jlev+1) = transmittance(:,jlev)*flux_dn(:,jlev) + source_dn(:,jlev)
+      ! $acc loop independent 
+      do jcol = 1,ncol
+        flux_dn(jcol,jlev+1) = transmittance(jcol,jlev)*flux_dn(jcol,jlev) + source_dn(jcol,jlev)
+      end do
     end do
 
     ! Surface reflection and emission
-    flux_up(:,nlev+1) = emission_surf + albedo_surf * flux_dn(:,nlev+1)
+    !$acc loop independent
+    do jcol = 1,ncol
+      flux_up(jcol,nlev+1) = emission_surf(jcol) + albedo_surf(jcol) * flux_dn(jcol,nlev+1)
+    end do
 
     ! Work back up through the atmosphere computing the upward fluxes
     ! at each half-level
-    !$acc loop seq
+    ! worker vector tile(32,4)
+    !$acc loop seq 
     do jlev = nlev,1,-1
-      flux_up(:,jlev) = transmittance(:,jlev)*flux_up(:,jlev+1) + source_up(:,jlev)
+      !$acc loop independent 
+      do jcol = 1,ncol
+        flux_up(jcol,jlev) = transmittance(jcol,jlev)*flux_up(jcol,jlev+1) + source_up(jcol,jlev)
+      end do
     end do
     
 #ifdef DR_HOOK

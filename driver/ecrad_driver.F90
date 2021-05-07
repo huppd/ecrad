@@ -281,8 +281,6 @@ program ecrad_driver
       nblock = (driver_config%iendcol - driver_config%istartcol &
            &  + driver_config%nblocksize) / driver_config%nblocksize
      
-      ! write(nulout,'(a,i0)')  'number of blocks ', nblock
-
       tstart = omp_get_wtime() 
       !$OMP PARALLEL DO PRIVATE(istartcol, iendcol) SCHEDULE(RUNTIME)
       do jblock = 1, nblock

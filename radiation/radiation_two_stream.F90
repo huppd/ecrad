@@ -86,9 +86,9 @@ contains
 
     if (lhook) call dr_hook('radiation_two_stream:calc_two_stream_gammas_lw',0,hook_handle)
 #endif
-    !$acc routine worker
+    !$acc routine vector
 
-    !$acc loop independent worker
+    !$acc loop independent 
     do jg = 1, ng
       ! Fu et al. (1997), Eq 2.9 and 2.10:
       !      gamma1(jg) = LwDiffusivity * (1.0_jprb - 0.5_jprb*ssa(jg) &
@@ -205,9 +205,9 @@ contains
 
     if (lhook) call dr_hook('radiation_two_stream:calc_reflectance_transmittance_lw',0,hook_handle)
 #endif
-    !$acc routine worker
+    !$acc routine vector
 
-    !$acc loop independent worker
+    !$acc loop independent vector
     do jg = 1, ng
       if (od(jg) > 1.0e-3_jprd) then
         k_exponent = sqrt(max((gamma1(jg) - gamma2(jg)) * (gamma1(jg) + gamma2(jg)), &
@@ -363,7 +363,7 @@ contains
 #endif
     !$acc routine worker
 
-    !$acc loop worker
+    !$acc loop independent
     do jg = 1, ng
       ! Compute upward and downward emission assuming the Planck
       ! function to vary linearly with optical depth within the layer
