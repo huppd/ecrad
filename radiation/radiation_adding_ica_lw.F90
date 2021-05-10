@@ -353,4 +353,87 @@ contains
 #endif
   end subroutine calc_fluxes_no_scattering_lw
 
+
+  !---------------------------------------------------------------------
+  ! If there is no scattering then fluxes may be computed simply by
+  ! passing down through the atmosphere computing the downwelling
+  ! fluxes from the transmission and emission of each layer, and then
+  ! passing back up through the atmosphere to compute the upwelling
+  ! fluxes in the same way.
+  subroutine calc_fluxes_no_scattering_lwT(istartcol,iendcol, nlev, &
+       &  transmittance, source_up, source_dn, emission_surf, albedo_surf, flux_up, flux_dn)
+
+    use parkind1, only           : jprb
+    use yomhook,  only           : lhook, dr_hook
+
+    implicit none
+
+    ! Inputs
+    integer, intent(in) :: istartcol ! number of columns (may be spectral intervals)
+    integer, intent(in) :: iendcol ! number of columns (may be spectral intervals)
+    integer, intent(in) :: nlev ! number of levels
+
+    ! Surface emission (W m-2) and albedo
+    real(jprb), intent(in),  dimension(istartcol:iendcol) :: emission_surf, albedo_surf
+
+    ! Diffuse reflectance and transmittance of each layer
+    real(jprb), intent(in),  dimension(istartcol:iendcol, nlev)   :: transmittance
+
+    ! Emission from each layer in an upward and downward direction
+    real(jprb), intent(in),  dimension(istartcol:iendcol, nlev)   :: source_up, source_dn
+
+    ! Resulting fluxes (W m-2) at half-levels: diffuse upwelling and
+    ! downwelling
+    real(jprb), intent(out), dimension(istartcol:iendcol, nlev+1) :: flux_up, flux_dn
+    
+    ! Loop index for model level
+    integer :: jcol, jlev
+
+    real(jprb) :: hook_handle
+
+#ifdef DR_HOOK
+    if (lhook) call dr_hook('radiation_adding_ica_lw:calc_fluxes_no_scattering_lw',0,hook_handle)
+#endif
+    !$acc routine worker
+
+    ! At top-of-atmosphere there is no diffuse downwelling radiation
+    !$acc loop independent
+    do jcol = istartcol,iendcol
+      flux_dn(jcol,1) = 0.0_jprb
+    end do
+
+
+    ! Work down through the atmosphere computing the downward fluxes
+    ! at each half-level
+    !worker vector tile(32,4)
+    !$acc loop seq
+    do jlev = 1,nlev
+      ! $acc loop independent 
+      do jcol = istartcol,iendcol
+        flux_dn(jcol,jlev+1) = transmittance(jcol,jlev)*flux_dn(jcol,jlev) + source_dn(jcol,jlev)
+      end do
+    end do
+
+    ! Surface reflection and emission
+    !$acc loop independent
+    do jcol = istartcol,iendcol
+      flux_up(jcol,nlev+1) = emission_surf(jcol) + albedo_surf(jcol) * flux_dn(jcol,nlev+1)
+    end do
+
+    ! Work back up through the atmosphere computing the upward fluxes
+    ! at each half-level
+    ! worker vector tile(32,4)
+    !$acc loop seq 
+    do jlev = nlev,1,-1
+      !$acc loop independent 
+      do jcol = istartcol,iendcol
+        flux_up(jcol,jlev) = transmittance(jcol,jlev)*flux_up(jcol,jlev+1) + source_up(jcol,jlev)
+      end do
+    end do
+    
+#ifdef DR_HOOK
+    if (lhook) call dr_hook('radiation_adding_ica_lw:calc_fluxes_no_scattering_lw',1,hook_handle)
+#endif
+  end subroutine calc_fluxes_no_scattering_lwT
+
 end module radiation_adding_ica_lw

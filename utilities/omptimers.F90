@@ -95,14 +95,14 @@ contains
     integer :: idx
     double precision :: ttime
 
-    open(1, file="omptiming.txt", action="write")
+    open(1, file="omptiming.txt", action="write", access="append")
 
     do idx = 1,1000
       ttime = 0
       if(total_time(idx,0) > 0.0) then
         ttime = sum(total_time(idx,:)) / omp_num_threads
         rms = sqrt( sum( (total_time(idx,:) - ttime)**2) / omp_num_threads)
-        write(1, '(A80,E10.3,E10.3,I10)'), names(idx), ttime, rms, ncalls(idx)
+        write(1, '(A80,A,E10.3,A,E10.3,A,I10)'), names(idx),',', ttime,',', rms,',', ncalls(idx)
       end if
     end do
 

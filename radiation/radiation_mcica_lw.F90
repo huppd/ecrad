@@ -52,9 +52,11 @@ contains
     use radiation_flux, only           : flux_type
     use radiation_two_stream, only     : calc_two_stream_gammas_lw, &
          &                               calc_reflectance_transmittance_lw, &
-         &                               calc_no_scattering_transmittance_lw
+         &                               calc_no_scattering_transmittance_lw, &
+         &                               calc_no_scattering_transmittance_lwT
     use radiation_adding_ica_lw, only  : adding_ica_lw, fast_adding_ica_lw, &
-         &                               calc_fluxes_no_scattering_lw
+         &                               calc_fluxes_no_scattering_lw, &
+         &                               calc_fluxes_no_scattering_lwT
     use radiation_lw_derivatives, only : calc_lw_derivatives_ica, modify_lw_derivatives_ica
     use radiation_cloud_generator, only: cloud_generator
 
@@ -93,20 +95,29 @@ contains
     type(flux_type), intent(inout):: flux
 
     ! Local variables
+    real(jprb), dimension(istartcol:iendcol, nlev, config%n_g_lw) :: &
+         &  odT
+    real(jprb), dimension(istartcol:iendcol, nlev+1, config%n_g_lw) :: &
+         &  planck_hlT
 
     ! Diffuse reflectance and transmittance for each layer in clear
     ! and all skies
     real(jprb), dimension(config%n_g_lw, nlev) :: ref_clear, reflectance, transmittance 
     real(jprb), dimension(config%n_g_lw, nlev, istartcol:iendcol) :: trans_clear ! added jcol
+    real(jprb), dimension(istartcol:iendcol, nlev, config%n_g_lw) :: trans_clearT ! added jcol
 
     ! Emission by a layer into the upwelling or downwelling diffuse
     ! streams, in clear and all skies
     real(jprb), dimension(config%n_g_lw, nlev, istartcol:iendcol) :: source_up_clear, source_dn_clear ! added jcol to source_up/dn_clear for breaking up the loop
+    real(jprb), dimension(istartcol:iendcol, nlev,  config%n_g_lw) :: source_up_clearT, source_dn_clearT ! added jcol to source_up/dn_clear for breaking up the loop
     real(jprb), dimension(config%n_g_lw, nlev) :: source_up, source_dn
 
     ! Fluxes per g point
     real(jprb), dimension(config%n_g_lw, nlev+1) :: flux_up, flux_dn
     real(jprb), dimension(config%n_g_lw, nlev+1, istartcol:iendcol) :: flux_up_clear, flux_dn_clear ! added jcol for breaking up the loop
+    real(jprb), dimension(istartcol:iendcol, nlev+1, config%n_g_lw) :: flux_up_clearT, flux_dn_clearT ! added jcol for breaking up the loop
+
+    real(jprb), dimension(istartcol:iendcol, config%n_g_lw) :: emissionT, albedoT
 
     ! Combined gas+aerosol+cloud optical depth, single scattering
     ! albedo and asymmetry factor
@@ -160,20 +171,46 @@ contains
     ng = config%n_g_lw
 
     ! write(*,*)
-    ! write(*, '(A80,I10)'), 'ng: ', ng
-    ! write(*, '(A80,I10)'), 'nlev: ', nlev
+    ! write(*, '(A80,I10)'), 'ng:', ng
+    ! write(*, '(A80,I10)'), 'nlev:', nlev
     ! write(*,*)
 
+    do jg=1,ng
+        do jcol = istartcol,iendcol
+          albedoT(jcol,jg) = albedo(jg,jcol)
+          emissionT(jcol,jg) = emission(jg,jcol)
+        end do
+    end do
+    do jg=1,ng
+      do jlev=1,nlev
+        do jcol = istartcol,iendcol
+          ! flux_up_clearT(jcol,jlev,jg) = flux_up_clear(jg,jlev,jcol)
+          ! flux_dn_clearT(jcol,jlev,jg) = flux_dn_clear(jg,jlev,jcol)
+          ! source_up_clearT(jcol,jlev,jg) = source_up_clear(jg,jlev,jcol)
+          ! source_dn_clearT(jcol,jlev,jg) = source_dn_clear(jg,jlev,jcol)
+          odT(jcol,jlev,jg) = od(jg,jlev,jcol)
+        end do
+      end do
+    end do
+    do jg=1,ng
+      do jlev=1,nlev+1
+        do jcol = istartcol,iendcol
+          planck_hlT(jcol,jlev,jg) = planck_hl(jg,jlev,jcol)
+        end do
+      end do
+    end do
+
     ! $ACC DATA CREATE(gamma1, gamma2, flux_up_clear, flux_dn_clear, ref_clear, source_dn_clear, source_up_clear, trans_clear) COPYIN(albedo, emission, g, ssa, od, planck_hl)
-    !$ACC DATA CREATE(flux_up_clear, flux_dn_clear,  source_dn_clear, source_up_clear, trans_clear) COPYIN(albedo, emission,  od, planck_hl)
+    !$ACC DATA CREATE(flux_up_clearT, flux_dn_clearT,  source_dn_clearT, source_up_clearT, trans_clearT) COPYIN(albedoT, emissionT,  odT, planck_hlT)
     ! $ACC sync
     call omptimer_mark('Solver MCICA part',0,omphook_handle)
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! start the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Loop through columns
-    !$acc parallel DEFAULT(none) num_workers(5) vector_length(32)
+    !$acc parallel DEFAULT(none) num_workers(8) vector_length(32)
     !$acc loop independent gang 
-    do jcol = istartcol,iendcol
+    do jg = 1,ng
+    ! do jcol = istartcol,iendcol
 
 ! #ifndef _OPENACC
       ! Clear-sky calculation
@@ -204,16 +241,16 @@ contains
         ! transmission and emission
         !$acc loop independent
         do jlev = 1,nlev
-          call calc_no_scattering_transmittance_lw(ng, od(:,jlev,jcol), &
-               &  planck_hl(:,jlev,jcol), planck_hl(:,jlev+1, jcol), &
-               &  trans_clear(:,jlev,jcol), source_up_clear(:,jlev,jcol), source_dn_clear(:,jlev,jcol))
+          call calc_no_scattering_transmittance_lwT(istartcol,iendcol, odT(:,jlev,jg), &
+               &  planck_hlT(:,jlev,jg), planck_hlT(:,jlev+1, jg), &
+               &  trans_clearT(:,jlev,jg), source_up_clearT(:,jlev,jg), source_dn_clearT(:,jlev,jg))
         end do
 
         ! Simpler down-then-up method to compute fluxes
-        call calc_fluxes_no_scattering_lw(ng, nlev, &
-             &  trans_clear(:,:,jcol), source_up_clear(:,:,jcol), source_dn_clear(:,:,jcol), &
-             &  emission(:,jcol), albedo(:,jcol), &
-             &  flux_up_clear(:,:,jcol), flux_dn_clear(:,:,jcol))
+        call calc_fluxes_no_scattering_lwT(istartcol,iendcol, nlev, &
+             &  trans_clearT(:,:,jg), source_up_clearT(:,:,jg), source_dn_clearT(:,:,jg), &
+             &  emissionT(:,jg), albedoT(:,jg), &
+             &  flux_up_clearT(:,:,jg), flux_dn_clearT(:,:,jg))
         
         ! Ensure that clear-sky reflectance is zero since it may be
         ! used in cloudy-sky case
@@ -227,8 +264,31 @@ contains
     !$acc end parallel
     !$acc wait
     call omptimer_mark('Solver MCICA part',1,omphook_handle)
-    !$acc update host(flux_dn_clear, flux_up_clear, trans_clear, source_up_clear, source_dn_clear)
+    !$acc update host(flux_dn_clearT, flux_up_clearT, trans_clearT, source_up_clearT, source_dn_clearT)
     !$acc end data
+
+    do jcol = istartcol,iendcol
+      do jlev=1,nlev+1
+        do jg=1,ng
+          flux_up_clear(jg,jlev,jcol) = flux_up_clearT(jcol,jlev,jg)
+          flux_dn_clear(jg,jlev,jcol) = flux_dn_clearT(jcol,jlev,jg)
+          ! source_up_clear(jg,jlev,jcol) = source_up_clearT(jcol,jlev,jg)
+          ! source_dn_clear(jg,jlev,jcol) = source_dn_clearT(jcol,jlev,jg)
+          ! trans_clear(jg,jlev,jcol) = trans_clearT(jcol,jlev,jg)
+        end do
+      end do
+    end do
+    do jcol = istartcol,iendcol
+      do jlev=1,nlev
+        do jg=1,ng
+          ! flux_up_clear(jg,jlev,jcol) = flux_up_clearT(jcol,jlev,jg)
+          ! flux_dn_clear(jg,jlev,jcol) = flux_dn_clearT(jcol,jlev,jg)
+          source_up_clear(jg,jlev,jcol) = source_up_clearT(jcol,jlev,jg)
+          source_dn_clear(jg,jlev,jcol) = source_dn_clearT(jcol,jlev,jg)
+          trans_clear(jg,jlev,jcol) = trans_clearT(jcol,jlev,jg)
+        end do
+      end do
+    end do
 
     do jcol = istartcol,iendcol
 
