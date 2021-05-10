@@ -1,0 +1,16 @@
+FC = pgf90
+CPPFLAGS = -Mpreprocess
+
+ifndef DEBUG
+OPTFLAGS = -O3 
+#-acc -ta=nvidia -Mcuda
+else
+OPTFLAGS = -O0
+endif
+
+WARNFLAGS = -Minform=inform -Minfo=accel
+BASICFLAGS = -module ../mod -Mbyteswapio
+#LDFLAGS = -acc
+DEBUGFLAGS = -g
+OMPFLAG = -mp=nonuma 
+#-acc -Mcuda
