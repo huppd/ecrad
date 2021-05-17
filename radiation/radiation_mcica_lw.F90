@@ -207,14 +207,14 @@ contains
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! start the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Loop through columns
-    !$acc parallel DEFAULT(none) num_workers(8) vector_length(32)
+    !$acc parallel DEFAULT(none) num_workers(16) vector_length(32)
     !$acc loop independent gang 
     do jg = 1,ng
     ! do jcol = istartcol,iendcol
 
 ! #ifndef _OPENACC
       ! Clear-sky calculation
-      if (config%do_lw_aerosol_scattering) then
+      ! if (config%do_lw_aerosol_scattering) then
 !         ! Scattering case: first compute clear-sky reflectance,
 !         ! transmittance etc at each model level
 !         !$acc loop independent 
@@ -235,17 +235,23 @@ contains
 !              &  emission(:,jcol), albedo(:,jcol), &
 !              &  flux_up_clear(:,:,jcol), flux_dn_clear(:,:,jcol))
         
-      else
+      ! else
 ! #endif
         ! Non-scattering case: use simpler functions for
         ! transmission and emission
-        !$acc loop independent
+        !$acc loop independent worker
         do jlev = 1,nlev
           call calc_no_scattering_transmittance_lwT(istartcol,iendcol, odT(:,jlev,jg), &
                &  planck_hlT(:,jlev,jg), planck_hlT(:,jlev+1, jg), &
                &  trans_clearT(:,jlev,jg), source_up_clearT(:,jlev,jg), source_dn_clearT(:,jlev,jg))
         end do
 
+    end do ! jcol
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !$acc end parallel
+    !$acc parallel DEFAULT(none) num_workers(8) vector_length(32)
+    !$acc loop independent gang 
+    do jg = 1,ng
         ! Simpler down-then-up method to compute fluxes
         call calc_fluxes_no_scattering_lwT(istartcol,iendcol, nlev, &
              &  trans_clearT(:,:,jg), source_up_clearT(:,:,jg), source_dn_clearT(:,:,jg), &
@@ -256,7 +262,7 @@ contains
         ! used in cloudy-sky case
 ! #ifndef _OPENACC
 !         ref_clear = 0.0_jprb
-      end if
+      ! end if
 ! #endif
 
     end do ! jcol

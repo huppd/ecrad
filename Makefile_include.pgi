@@ -2,7 +2,8 @@ FC = pgf90
 CPPFLAGS = -Mpreprocess
 
 ifndef DEBUG
-OPTFLAGS = -O3 -acc -ta=tesla:lineinfo -Mcuda
+OPTFLAGS = -O3 -acc -ta=tesla:lineinfo -Mcuda -Mipa=fast #inline:reshape -Minfo flags
+#OPTFLAGS = -O3 -acc -ta=tesla:maxregcount:66 -Mcuda
 else
 OPTFLAGS = -O0
 endif
