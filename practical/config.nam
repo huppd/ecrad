@@ -18,7 +18,7 @@
 !
 iverbose    	= 2, 
 do_parallel     = true,      ! Use OpenMP parallelization, if possible?
-nblocksize      = 2500,      ! 625 2048, 1024,512, 256,128,64,32 Number of columns to process per thread
+nblocksize      = 32,      ! 625 2048, 1024,512, 256,128,64,32 Number of columns to process per thread
 experiment_name = "Control", ! Written to output file, used in plot legends
 !
 ! SCALE OR OVERRIDE ECRAD INPUTS
