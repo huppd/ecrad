@@ -95,7 +95,7 @@ contains
     integer :: idx
     double precision :: ttime
 
-    open(1, file="omptiming.txt", action="write")
+    open(1, file="omptiming.txt", action="write", access="append")
 
     do idx = 1,1000
       ttime = 0

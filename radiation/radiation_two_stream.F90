@@ -361,13 +361,13 @@ contains
 
     if (lhook) call dr_hook('radiation_two_stream:calc_no_scattering_transmittance_lw',0,hook_handle)
 #endif
-    !$acc routine worker
+    !$acc routine vector
 
-    !$acc loop independent
+    !$acc loop independent 
     do jg = 1, ng
       ! Compute upward and downward emission assuming the Planck
       ! function to vary linearly with optical depth within the layer
-      ! (e.g. Wiscombe , JQSRT 1976).
+      ! (e.g. Wiscom      else
       if (od(jg) > 1.0e-3) then
         ! Simplified from calc_reflectance_transmittance_lw above
         coeff = LwDiffusivity*od(jg)
@@ -398,7 +398,7 @@ contains
     !    end do
 
 #ifdef DO_DR_HOOK_TWO_STREAM
-    ! if (lhook) call dr_hook('radiation_two_stream:calc_no_scattering_transmittance_lw',1,hook_handle)
+    if (lhook) call dr_hook('radiation_two_stream:calc_no_scattering_transmittance_lw',1,hook_handle)
 #endif
 
   end subroutine calc_no_scattering_transmittance_lw
