@@ -201,13 +201,15 @@ contains
     end do
 
     ! $ACC DATA CREATE(gamma1, gamma2, flux_up_clear, flux_dn_clear, ref_clear, source_dn_clear, source_up_clear, trans_clear) COPYIN(albedo, emission, g, ssa, od, planck_hl)
-    !$ACC DATA CREATE(flux_up_clearT, flux_dn_clearT,  source_dn_clearT, source_up_clearT, trans_clearT) COPYIN(albedoT, emissionT,  odT, planck_hlT)
+    !$ACC DATA CREATE(flux_up_clearT, flux_dn_clearT,  source_dn_clearT, source_up_clearT, trans_clearT) COPYIN(albedoT, emissionT,  odT, planck_hlT, flux, flux%lw_up_clear, flux%lw_dn_clear, flux%lw_dn_surf_clear_g)
     ! $ACC sync
     call omptimer_mark('Solver MCICA part',0,omphook_handle)
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! start the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! Loop through columns
-    !$acc parallel DEFAULT(none) num_workers(16) vector_length(32)
+
+
+    !$acc parallel DEFAULT(none) num_workers(5) vector_length(32)
+
     !$acc loop independent gang 
     do jg = 1,ng
     ! do jcol = istartcol,iendcol
@@ -246,7 +248,7 @@ contains
                &  trans_clearT(:,jlev,jg), source_up_clearT(:,jlev,jg), source_dn_clearT(:,jlev,jg))
         end do
 
-    end do ! jcol
+    end do ! jg
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !$acc end parallel
     !$acc parallel DEFAULT(none) num_workers(8) vector_length(32)
@@ -265,12 +267,49 @@ contains
       ! end if
 ! #endif
 
-    end do ! jcol
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    end do ! jg
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !$acc end parallel
+
+    !$acc parallel  DEFAULT(none) num_workers(5) vector_length(32)
+    flux%lw_up_clear(istartcol:iendcol,:) =  0.0_jprb
+    flux%lw_dn_clear(istartcol:iendcol,:) =  0.0_jprb
+    !$acc end parallel
+
+    !$acc parallel  DEFAULT(none) num_workers(5) vector_length(32)
+    ! Sum over g-points to compute broadband fluxes
+    !$acc loop seq
+    do jg = 1,ng
+      !$acc loop independent gang
+      do jlev = 1,nlev+1
+        !$acc loop independent worker vector
+        do jcol = istartcol,iendcol
+            ! flux%lw_up_clear(jcol,jlev) = sum(flux_up_clearT(jcol,jlev,:))
+            ! flux%lw_dn_clear(jcol,jlev) = sum(flux_dn_clearT(jcol,jlev,:))
+            flux%lw_up_clear(jcol,jlev) = flux%lw_up_clear(jcol,jlev) + flux_up_clearT(jcol,jlev,jg)
+            flux%lw_dn_clear(jcol,jlev) = flux%lw_dn_clear(jcol,jlev) + flux_dn_clearT(jcol,jlev,jg)
+          end do
+        end do
+    end do
+    !$acc end parallel
+
+    !$acc parallel  DEFAULT(none) num_workers(5) vector_length(32)
+
+    ! Store surface spectral downwelling fluxes
+    !$acc loop independent gang
+    do jg = 1,ng
+      !$acc loop independent worker vector
+      do jcol = istartcol,iendcol
+        flux%lw_dn_surf_clear_g(jg,jcol) = flux_dn_clearT(jcol,nlev+1,jg)
+      end do
+    end do
+    !$acc end parallel
+
     !$acc wait
     call omptimer_mark('Solver MCICA part',1,omphook_handle)
+
     !$acc update host(flux_dn_clearT, flux_up_clearT, trans_clearT, source_up_clearT, source_dn_clearT)
+    !$acc update host(flux%lw_up_clear(istartcol:iendcol,:), flux%lw_dn_clear(istartcol:iendcol,:), flux%lw_dn_surf_clear_g(:,istartcol:iendcol))
     !$acc end data
 
     do jcol = istartcol,iendcol
@@ -297,13 +336,6 @@ contains
     end do
 
     do jcol = istartcol,iendcol
-
-      ! Sum over g-points to compute broadband fluxes
-      flux%lw_up_clear(jcol,:) = sum(flux_up_clear(:,:,jcol),1)
-      flux%lw_dn_clear(jcol,:) = sum(flux_dn_clear(:,:,jcol),1)
-      ! Store surface spectral downwelling fluxes
-      flux%lw_dn_surf_clear_g(:,jcol) = flux_dn_clear(:,nlev+1,jcol)
-
 
       ! Do cloudy-sky calculation; add a prime number to the seed in
       ! the longwave
