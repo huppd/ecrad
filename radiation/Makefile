@@ -30,10 +30,12 @@ $(LIBRAD): $(OBJECTS)
 	ar r $(LIBRAD) $(OBJECTS)
 
 %.o: %.F90
-	$(FC) $(FCFLAGS) -c $<
+ 	$(FC) $(FCFLAGS) -c $<
+	# $(FC) $(FCFLAGS)  -Mextract=lib:lib.il,reshape,name:calc_no_scattering_transmittance_lw,name:calc_fluxes_no_scattering_lw  -c  $<
 
 clean:
 	rm -f *.o $(LIBRAD)
+	rm -fr lib.il
 
 radiation_flux.o radiation_aerosol.o: radiation_config.o 
 radiation_interface.o: radiation_aerosol.o radiation_config.o \

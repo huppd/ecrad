@@ -64,9 +64,9 @@ endif
 # Consolidate flags
 export FC
 export FCFLAGS = $(WARNFLAGS) $(BASICFLAGS) $(CPPFLAGS) -I../include \
-	$(OPTFLAGS) $(DEBUGFLAGS) $(NETCDF_INCLUDE) $(OMPFLAG)
+	$(OPTFLAGS) $(DEBUGFLAGS) $(NETCDF_INCLUDE) $(OMPFLAG) $(INLINEEXTRACT)
 export LIBS    = $(LDFLAGS) -L../lib -lradsurf -lradiation -lutilities \
-	-lifsrrtm -ldrhook -lifsaux $(FCLIBS) $(NETCDF_LIB) $(OMPFLAG)
+	-lifsrrtm -ldrhook -lifsaux $(FCLIBS) $(NETCDF_LIB) $(OMPFLAG) $(INLINEFFLAGS)
 ifdef DR_HOOK
 LIBS += -ldl -lrt
 export CFLAGS = -g -O2

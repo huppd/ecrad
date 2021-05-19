@@ -180,7 +180,7 @@ contains
 
 ! #ifndef _OPENACC
       ! Clear-sky calculation
-      if (config%do_lw_aerosol_scattering) then
+     !  if (config%do_lw_aerosol_scattering) then
 !         ! Scattering case: first compute clear-sky reflectance,
 !         ! transmittance etc at each model level
 !         !$acc loop independent 
@@ -201,7 +201,7 @@ contains
 !              &  emission(:,jcol), albedo(:,jcol), &
 !              &  flux_up_clear(:,:,jcol), flux_dn_clear(:,:,jcol))
         
-      else
+     !  else
 ! #endif
         ! Non-scattering case: use simpler functions for
         ! transmission and emission
@@ -211,13 +211,13 @@ contains
                &  planck_hl(:,jlev,jcol), planck_hl(:,jlev+1, jcol), &
                &  trans_clear(:,jlev,jcol), source_up_clear(:,jlev,jcol), source_dn_clear(:,jlev,jcol))
         end do
-!     end do ! jcol
-!     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!     !$acc end parallel
+    end do ! jcol
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !$acc end parallel
 
-!     !$acc parallel DEFAULT(none) num_workers(5) vector_length(32)
-!     !$acc loop independent gang 
-!     do jcol = istartcol,iendcol
+    !$acc parallel DEFAULT(none) num_workers(5) vector_length(32)
+    !$acc loop independent gang 
+    do jcol = istartcol,iendcol
         ! Simpler down-then-up method to compute fluxes
         call calc_fluxes_no_scattering_lw(ng, nlev, &
              &  trans_clear(:,:,jcol), source_up_clear(:,:,jcol), source_dn_clear(:,:,jcol), &
@@ -228,7 +228,7 @@ contains
         ! used in cloudy-sky case
 ! #ifndef _OPENACC
 !         ref_clear = 0.0_jprb
-      end if
+     !  end if
 ! #endif
 
 
@@ -237,18 +237,34 @@ contains
      flux%lw_up_clear(jcol,:) = sum(flux_up_clear(:,:,jcol),1)
      flux%lw_dn_clear(jcol,:) = sum(flux_dn_clear(:,:,jcol),1)
 #else
-     !$acc loop independent worker vector
-      do jlev=1,nlev+1
-          flux%lw_up_clear(jcol,jlev) = 0.0_jprb
-          flux%lw_dn_clear(jcol,jlev) = 0.0_jprb
+    end do ! jcol
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !$acc end parallel
 
-          !$acc loop seq 
-          do jg=1,ng
+    !$acc parallel DEFAULT(none) num_workers(5) vector_length(32)
+    flux%lw_up_clear(istartcol:iendcol,:) = 0.0_jprb
+    flux%lw_dn_clear(istartcol:iendcol,:) = 0.0_jprb
+    !$acc end parallel
+
+    !$acc parallel DEFAULT(none) num_workers(5) vector_length(32)
+    !$acc loop seq 
+    do jg=1,ng
+     !$acc loop independent gang 
+     do jlev=1,nlev+1
+          !$acc loop independent worker vector
+          do jcol = istartcol,iendcol
                flux%lw_up_clear(jcol,jlev) = flux%lw_up_clear(jcol,jlev) + flux_up_clear(jg,jlev,jcol)
                flux%lw_dn_clear(jcol,jlev) = flux%lw_dn_clear(jcol,jlev) + flux_dn_clear(jg,jlev,jcol)
           end do
       end do
 #endif
+    end do ! jcol
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !$acc end parallel
+
+    !$acc parallel DEFAULT(none) num_workers(5) vector_length(32)
+    !$acc loop independent gang 
+    do jcol = istartcol,iendcol
       ! Store surface spectral downwelling fluxes
       flux%lw_dn_surf_clear_g(:,jcol) = flux_dn_clear(:,nlev+1,jcol)
 

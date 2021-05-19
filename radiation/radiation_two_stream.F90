@@ -361,7 +361,7 @@ contains
 
     if (lhook) call dr_hook('radiation_two_stream:calc_no_scattering_transmittance_lw',0,hook_handle)
 #endif
-    !$acc routine vector
+    !$acc routine vector 
 
     !$acc loop independent 
     do jg = 1, ng
