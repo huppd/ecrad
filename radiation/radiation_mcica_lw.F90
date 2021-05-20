@@ -205,19 +205,21 @@ contains
 ! #endif
         ! Non-scattering case: use simpler functions for
         ! transmission and emission
-        !$acc loop independent worker
+        !$acc loop seq
         do jlev = 1,nlev
           call calc_no_scattering_transmittance_lw(ng, od(:,jlev,jcol), &
                &  planck_hl(:,jlev,jcol), planck_hl(:,jlev+1, jcol), &
                &  trans_clear(:,jlev,jcol), source_up_clear(:,jlev,jcol), source_dn_clear(:,jlev,jcol))
         end do
-    end do ! jcol
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !$acc end parallel
 
-    !$acc parallel DEFAULT(none) num_workers(5) vector_length(32)
-    !$acc loop independent gang 
-    do jcol = istartcol,iendcol
+!     end do ! jcol
+!     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!     !$acc end parallel
+
+!     !$acc parallel DEFAULT(none) num_workers(5) vector_length(32)
+!     !$acc loop independent gang 
+!     do jcol = istartcol,iendcol
+
         ! Simpler down-then-up method to compute fluxes
         call calc_fluxes_no_scattering_lw(ng, nlev, &
              &  trans_clear(:,:,jcol), source_up_clear(:,:,jcol), source_dn_clear(:,:,jcol), &
@@ -232,15 +234,14 @@ contains
 ! #endif
 
 
-     ! Sum over g-points to compute broadband fluxes
-#ifndef _OPENACC
-     flux%lw_up_clear(jcol,:) = sum(flux_up_clear(:,:,jcol),1)
-     flux%lw_dn_clear(jcol,:) = sum(flux_dn_clear(:,:,jcol),1)
-#else
     end do ! jcol
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !$acc end parallel
 
+    !$acc wait
+    call omptimer_mark('Solver MCICA part',1,omphook_handle)
+
+#ifdef _OPENACC
     !$acc parallel DEFAULT(none) num_workers(5) vector_length(32)
     flux%lw_up_clear(istartcol:iendcol,:) = 0.0_jprb
     flux%lw_dn_clear(istartcol:iendcol,:) = 0.0_jprb
@@ -249,15 +250,14 @@ contains
     !$acc parallel DEFAULT(none) num_workers(5) vector_length(32)
     !$acc loop seq 
     do jg=1,ng
-     !$acc loop independent gang 
-     do jlev=1,nlev+1
-          !$acc loop independent worker vector
-          do jcol = istartcol,iendcol
-               flux%lw_up_clear(jcol,jlev) = flux%lw_up_clear(jcol,jlev) + flux_up_clear(jg,jlev,jcol)
-               flux%lw_dn_clear(jcol,jlev) = flux%lw_dn_clear(jcol,jlev) + flux_dn_clear(jg,jlev,jcol)
-          end do
-      end do
-#endif
+        !$acc loop independent gang 
+        do jlev=1,nlev+1
+            !$acc loop independent worker vector
+            do jcol = istartcol,iendcol
+                flux%lw_up_clear(jcol,jlev) = flux%lw_up_clear(jcol,jlev) + flux_up_clear(jg,jlev,jcol)
+                flux%lw_dn_clear(jcol,jlev) = flux%lw_dn_clear(jcol,jlev) + flux_dn_clear(jg,jlev,jcol)
+            end do
+        end do
     end do ! jcol
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !$acc end parallel
@@ -267,19 +267,25 @@ contains
     do jcol = istartcol,iendcol
       ! Store surface spectral downwelling fluxes
       flux%lw_dn_surf_clear_g(:,jcol) = flux_dn_clear(:,nlev+1,jcol)
-
     end do ! jcol
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !$acc end parallel
-
-    !$acc wait
-    call omptimer_mark('Solver MCICA part',1,omphook_handle)
+#endif
     !$acc update host(flux_dn_clear, flux_up_clear, trans_clear, source_up_clear, source_dn_clear)
     !$acc update host(flux%lw_up_clear(istartcol:iendcol,:), flux%lw_dn_clear(istartcol:iendcol,:), flux%lw_dn_surf_clear_g(:,istartcol:iendcol))
     !$acc end data
 
+
     do jcol = istartcol,iendcol
 
+#ifndef _OPENACC
+      ! Sum over g-points to compute broadband fluxes
+      flux%lw_up_clear(jcol,:) = sum(flux_up_clear(:,:,jcol),1)
+      flux%lw_dn_clear(jcol,:) = sum(flux_dn_clear(:,:,jcol),1)
+      ! Store surface spectral downwelling fluxes
+      flux%lw_dn_surf_clear_g(:,jcol) = flux_dn_clear(:,nlev+1,jcol)
+
+#endif
 
       ! Do cloudy-sky calculation; add a prime number to the seed in
       ! the longwave

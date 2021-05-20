@@ -2,13 +2,18 @@ FC = pgf90
 CPPFLAGS = -Mpreprocess
 
 ifndef DEBUG
-OPTFLAGS = -O3 
+OPTFLAGS = -O3 -Mipa=fast
 #-acc -ta=nvidia -Mcuda
 else
 OPTFLAGS = -O0
 endif
 
-WARNFLAGS = -Minform=inform -Minfo=accel
+INLINEEXTRACT = -Mextract=lib:lib.il,reshape,name:calc_no_scattering_transmittance_lwT,name:calc_fluxes_no_scattering_lwT
+INLINEFFLAGS = -Minline=lib:lib.il,reshape
+export INLINEEXTRACT
+export INLINEFFLAGS
+
+WARNFLAGS = -Minform=inform -Minfo=accel,inline
 BASICFLAGS = -module ../mod -Mbyteswapio
 #LDFLAGS = -acc
 DEBUGFLAGS = -g

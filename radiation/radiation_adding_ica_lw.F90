@@ -278,7 +278,7 @@ contains
   ! fluxes from the transmission and emission of each layer, and then
   ! passing back up through the atmosphere to compute the upwelling
   ! fluxes in the same way.
-  subroutine calc_fluxes_no_scattering_lw(ncol, nlev, &
+  pure subroutine calc_fluxes_no_scattering_lw(ncol, nlev, &
        &  transmittance, source_up, source_dn, emission_surf, albedo_surf, flux_up, flux_dn)
 
     use parkind1, only           : jprb

@@ -30,8 +30,15 @@ $(LIBRAD): $(OBJECTS)
 	ar r $(LIBRAD) $(OBJECTS)
 
 %.o: %.F90
- 	$(FC) $(FCFLAGS) -c $<
-	# $(FC) $(FCFLAGS)  -Mextract=lib:lib.il,reshape,name:calc_no_scattering_transmittance_lw,name:calc_fluxes_no_scattering_lw  -c  $<
+ifdef INLINEEXTRACT
+	@echo "extracting functions from $(patsubst %.o,%.f90,$(notdir $@))"
+	@$(FC) -c $(FCFLAGS) $(INLINEEXTRACT)  $<
+endif
+	@echo "compiling $(patsubst %.o,%.f90,$(notdir $@))"
+	@$(FC) -c $(FCFLAGS) $(INLINEFFLAGS)  -o $@ $<
+
+	# $(FC) $(FCFLAGS) -c $<
+
 
 clean:
 	rm -f *.o $(LIBRAD)

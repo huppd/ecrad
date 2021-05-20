@@ -327,7 +327,7 @@ contains
   ! downward flux at the base of the layer due to emission from within
   ! the layer assuming a linear variation of Planck function within
   ! the layer.
-  subroutine calc_no_scattering_transmittance_lw(ng, &
+  pure subroutine calc_no_scattering_transmittance_lw(ng, &
        &    od, planck_top, planck_bot, transmittance, source_up, source_dn)
 
 #ifdef DO_DR_HOOK_TWO_STREAM
@@ -361,7 +361,7 @@ contains
 
     if (lhook) call dr_hook('radiation_two_stream:calc_no_scattering_transmittance_lw',0,hook_handle)
 #endif
-    !$acc routine vector 
+    !$acc routine worker
 
     !$acc loop independent 
     do jg = 1, ng
