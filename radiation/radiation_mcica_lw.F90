@@ -241,51 +241,42 @@ contains
     !$acc wait
     call omptimer_mark('Solver MCICA part',1,omphook_handle)
 
-#ifdef _OPENACC
     !$acc parallel DEFAULT(none) num_workers(5) vector_length(32)
-    flux%lw_up_clear(istartcol:iendcol,:) = 0.0_jprb
-    flux%lw_dn_clear(istartcol:iendcol,:) = 0.0_jprb
-    !$acc end parallel
 
-    !$acc parallel DEFAULT(none) num_workers(5) vector_length(32)
-    !$acc loop seq 
-    do jg=1,ng
-        !$acc loop independent gang 
-        do jlev=1,nlev+1
-            !$acc loop independent worker vector
-            do jcol = istartcol,iendcol
-                flux%lw_up_clear(jcol,jlev) = flux%lw_up_clear(jcol,jlev) + flux_up_clear(jg,jlev,jcol)
-                flux%lw_dn_clear(jcol,jlev) = flux%lw_dn_clear(jcol,jlev) + flux_dn_clear(jg,jlev,jcol)
-            end do
-        end do
-    end do ! jcol
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !$acc end parallel
-
-    !$acc parallel DEFAULT(none) num_workers(5) vector_length(32)
-    !$acc loop independent gang 
+    !$acc loop independent gang
     do jcol = istartcol,iendcol
+
+#ifdef _OPENACC
+    !$acc loop independent worker
+    do jlev=1,nlev+1
+      ! do jcol = istartcol,iendcol
+        tmp_sum_dn = 0.0_jprb
+        tmp_sum_up = 0.0_jprb
+        !$acc loop vector reduction(+:tmp_sum_dn, tmp_sum_up)
+        do jg=1,ng
+          tmp_sum_up = tmp_sum_up + flux_up_clear(jg,jlev,jcol)
+          tmp_sum_dn = tmp_sum_dn + flux_dn_clear(jg,jlev,jcol)
+        end do
+        flux%lw_up_clear(jcol,jlev) = tmp_sum_up
+        flux%lw_dn_clear(jcol,jlev) = tmp_sum_dn
+      end do
+#else
+      ! Sum over g-points to compute broadband fluxes
+      flux%lw_up_clear(jcol,:) = sum(flux_up_clear(:,:,jcol),1)
+      flux%lw_dn_clear(jcol,:) = sum(flux_dn_clear(:,:,jcol),1)
+#endif
       ! Store surface spectral downwelling fluxes
       flux%lw_dn_surf_clear_g(:,jcol) = flux_dn_clear(:,nlev+1,jcol)
+
     end do ! jcol
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !$acc end parallel
-#endif
+
     !$acc update host(flux_dn_clear, flux_up_clear, trans_clear, source_up_clear, source_dn_clear)
     !$acc update host(flux%lw_up_clear(istartcol:iendcol,:), flux%lw_dn_clear(istartcol:iendcol,:), flux%lw_dn_surf_clear_g(:,istartcol:iendcol))
     !$acc end data
 
-
     do jcol = istartcol,iendcol
-
-#ifndef _OPENACC
-      ! Sum over g-points to compute broadband fluxes
-      flux%lw_up_clear(jcol,:) = sum(flux_up_clear(:,:,jcol),1)
-      flux%lw_dn_clear(jcol,:) = sum(flux_dn_clear(:,:,jcol),1)
-      ! Store surface spectral downwelling fluxes
-      flux%lw_dn_surf_clear_g(:,jcol) = flux_dn_clear(:,nlev+1,jcol)
-
-#endif
 
       ! Do cloudy-sky calculation; add a prime number to the seed in
       ! the longwave

@@ -8,7 +8,7 @@ else
 OPTFLAGS = -O0
 endif
 
-INLINEEXTRACT = -Mextract=lib:lib.il,reshape,name:calc_no_scattering_transmittance_lwT,name:calc_fluxes_no_scattering_lwT
+INLINEEXTRACT = -Mextract=lib:lib.il,reshape,name:calc_no_scattering_transmittance_lw,name:calc_fluxes_no_scattering_lw
 INLINEFFLAGS = -Minline=lib:lib.il,reshape
 export INLINEEXTRACT
 export INLINEFFLAGS
