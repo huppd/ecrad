@@ -2,14 +2,20 @@ FC = pgf90
 CPPFLAGS = -Mpreprocess
 
 ifndef DEBUG
-OPTFLAGS = -O3 -acc -ta=tesla:lineinfo -Mcuda # -Mipa=fast #inline:reshape -Minfo flags
-#OPTFLAGS = -O3 -acc -ta=tesla:maxregcount:66 -Mcuda
+OPTFLAGS = -O3 -acc -ta=tesla -ta=tesla:lineinfo -Mcuda -Mipa=fast #-Mipa=fast,inline,reshape 
+#OPTFLAGS = -O3 -acc -ta=tesla:maxregcount:96 -ta=tesla:lineinfo -Mcuda -Mipa=fast #reshape -Minfo flags
 else
 OPTFLAGS = -O0
 endif
+
+INLINEEXTRACT = -Mextract=lib:lib.il,reshape,name:calc_no_scattering_transmittance_lwT,name:calc_fluxes_no_scattering_lwT
+INLINEFFLAGS = -Minline=lib:lib.il,reshape
+export INLINEEXTRACT
+export INLINEFFLAGS
 
 WARNFLAGS = -Minform=inform -Minfo=accel,inline
 BASICFLAGS = -module ../mod -Mbyteswapio
 #LDFLAGS = -acc
 DEBUGFLAGS = -g
-OMPFLAG = -mp=nonuma -acc -Mcuda
+OMPFLAG = -mp=nonuma -acc -Mcuda 
+#,intensity

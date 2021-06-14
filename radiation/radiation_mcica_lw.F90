@@ -208,7 +208,7 @@ contains
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! start the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-    !$acc parallel DEFAULT(none) num_workers(5) vector_length(32)
+    !$acc parallel DEFAULT(none) num_workers(32) vector_length(32)
 
     !$acc loop independent gang 
     do jg = 1,ng
@@ -241,19 +241,20 @@ contains
 ! #endif
         ! Non-scattering case: use simpler functions for
         ! transmission and emission
-        !$acc loop independent worker
+        !$acc loop seq 
         do jlev = 1,nlev
           call calc_no_scattering_transmittance_lwT(istartcol,iendcol, odT(:,jlev,jg), &
                &  planck_hlT(:,jlev,jg), planck_hlT(:,jlev+1, jg), &
                &  trans_clearT(:,jlev,jg), source_up_clearT(:,jlev,jg), source_dn_clearT(:,jlev,jg))
         end do
 
-    end do ! jg
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !$acc end parallel
-    !$acc parallel DEFAULT(none) num_workers(8) vector_length(32)
-    !$acc loop independent gang 
-    do jg = 1,ng
+    ! end do ! jg
+    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! !$acc end parallel
+    ! !$acc parallel DEFAULT(none) num_workers(5) vector_length(32)
+    ! !$acc loop independent gang 
+    ! do jg = 1,ng
+
         ! Simpler down-then-up method to compute fluxes
         call calc_fluxes_no_scattering_lwT(istartcol,iendcol, nlev, &
              &  trans_clearT(:,:,jg), source_up_clearT(:,:,jg), source_dn_clearT(:,:,jg), &
@@ -271,14 +272,17 @@ contains
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !$acc end parallel
 
-    !$acc parallel  DEFAULT(none) num_workers(5) vector_length(32)
+    !$acc wait
+    call omptimer_mark('Solver MCICA part',1,omphook_handle)
+
+    !$acc parallel  DEFAULT(none) num_workers(20) vector_length(32)
     flux%lw_up_clear(istartcol:iendcol,:) =  0.0_jprb
     flux%lw_dn_clear(istartcol:iendcol,:) =  0.0_jprb
     !$acc end parallel
 
-    !$acc parallel  DEFAULT(none) num_workers(5) vector_length(32)
+    !$acc parallel  DEFAULT(none) num_workers(20) vector_length(32)
     ! Sum over g-points to compute broadband fluxes
-    !$acc loop seq
+    !$acc loop independent gang
     do jg = 1,ng
       !$acc loop independent gang
       do jlev = 1,nlev+1
@@ -286,14 +290,16 @@ contains
         do jcol = istartcol,iendcol
             ! flux%lw_up_clear(jcol,jlev) = sum(flux_up_clearT(jcol,jlev,:))
             ! flux%lw_dn_clear(jcol,jlev) = sum(flux_dn_clearT(jcol,jlev,:))
+            !$acc atomic update
             flux%lw_up_clear(jcol,jlev) = flux%lw_up_clear(jcol,jlev) + flux_up_clearT(jcol,jlev,jg)
+            !$acc atomic update
             flux%lw_dn_clear(jcol,jlev) = flux%lw_dn_clear(jcol,jlev) + flux_dn_clearT(jcol,jlev,jg)
           end do
         end do
     end do
     !$acc end parallel
 
-    !$acc parallel  DEFAULT(none) num_workers(5) vector_length(32)
+    !$acc parallel  DEFAULT(none) num_workers(20) vector_length(32)
 
     ! Store surface spectral downwelling fluxes
     !$acc loop independent gang
@@ -305,8 +311,6 @@ contains
     end do
     !$acc end parallel
 
-    !$acc wait
-    call omptimer_mark('Solver MCICA part',1,omphook_handle)
 
     !$acc update host(flux_dn_clearT, flux_up_clearT, trans_clearT, source_up_clearT, source_dn_clearT)
     !$acc update host(flux%lw_up_clear(istartcol:iendcol,:), flux%lw_dn_clear(istartcol:iendcol,:), flux%lw_dn_surf_clear_g(:,istartcol:iendcol))

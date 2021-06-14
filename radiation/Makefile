@@ -30,10 +30,19 @@ $(LIBRAD): $(OBJECTS)
 	ar r $(LIBRAD) $(OBJECTS)
 
 %.o: %.F90
-	$(FC) $(FCFLAGS) -c $<
+ifdef INLINEEXTRACT
+	@echo "extracting functions from $(patsubst %.o,%.f90,$(notdir $@))"
+	@$(FC) -c $(FCFLAGS) $(INLINEEXTRACT)  $<
+endif
+	@echo "compiling $(patsubst %.o,%.f90,$(notdir $@))"
+	@$(FC) -c $(FCFLAGS) $(INLINEFFLAGS)  -o $@ $<
+
+	# $(FC) $(FCFLAGS) -c $<
+
 
 clean:
 	rm -f *.o $(LIBRAD)
+	rm -fr lib.il
 
 radiation_flux.o radiation_aerosol.o: radiation_config.o 
 radiation_interface.o: radiation_aerosol.o radiation_config.o \
