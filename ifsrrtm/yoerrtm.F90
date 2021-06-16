@@ -56,6 +56,7 @@ SAVE
 
 INTEGER(KIND=JPIM), PARAMETER :: JPGPT  = 140
 INTEGER(KIND=JPIM), PARAMETER :: JPGLW  = 140
+! INTEGER(KIND=JPIM), PARAMETER :: JPGLW  = 40
 
 !-- NGnn : number of g-points in each longwave spectral band
 INTEGER(KIND=JPIM), PARAMETER :: NG1  = 10
