@@ -251,7 +251,7 @@ Here, a little benachmark tutorial, that should work on TSA and has to be adapte
 The steps vary slightly for CPU and GPU.
 Depending on your platform it might be easier to adapt the CPU or GPU benchmark.
 
-## Generate input file
+# Generate input file
 To have the multiple input files go to the practical folder
   cd pracatical
 and run
