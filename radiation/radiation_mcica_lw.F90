@@ -170,11 +170,8 @@ contains
 
     ng = config%n_g_lw
 
-    ! write(*,*)
-    ! write(*, '(A80,I10)'), 'ng:', ng
-    ! write(*, '(A80,I10)'), 'nlev:', nlev
-    ! write(*,*)
 
+    ! transposing data
     do jg=1,ng
         do jcol = istartcol,iendcol
           albedoT(jcol,jg) = albedo(jg,jcol)
@@ -200,9 +197,8 @@ contains
       end do
     end do
 
-    ! $ACC DATA CREATE(gamma1, gamma2, flux_up_clear, flux_dn_clear, ref_clear, source_dn_clear, source_up_clear, trans_clear) COPYIN(albedo, emission, g, ssa, od, planck_hl)
-    !$ACC DATA CREATE(flux_up_clearT, flux_dn_clearT,  source_dn_clearT, source_up_clearT, trans_clearT) COPYIN(albedoT, emissionT,  odT, planck_hlT, flux, flux%lw_up_clear, flux%lw_dn_clear, flux%lw_dn_surf_clear_g)
-    ! $ACC sync
+    !$ACC DATA CREATE(flux_up_clearT, flux_dn_clearT, source_dn_clearT, source_up_clearT, trans_clearT) COPYIN(albedoT, emissionT,  odT, planck_hlT, flux, flux%lw_up_clear, flux%lw_dn_clear, flux%lw_dn_surf_clear_g)
+
     call omptimer_mark('Solver MCICA part',0,omphook_handle)
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! start the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -212,9 +208,7 @@ contains
 
     !$acc loop independent gang 
     do jg = 1,ng
-    ! do jcol = istartcol,iendcol
 
-! #ifndef _OPENACC
       ! Clear-sky calculation
       ! if (config%do_lw_aerosol_scattering) then
 !         ! Scattering case: first compute clear-sky reflectance,
@@ -238,7 +232,6 @@ contains
 !              &  flux_up_clear(:,:,jcol), flux_dn_clear(:,:,jcol))
         
       ! else
-! #endif
         ! Non-scattering case: use simpler functions for
         ! transmission and emission
         !$acc loop seq 
@@ -248,13 +241,6 @@ contains
                &  trans_clearT(:,jlev,jg), source_up_clearT(:,jlev,jg), source_dn_clearT(:,jlev,jg))
         end do
 
-    ! end do ! jg
-    ! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! !$acc end parallel
-    ! !$acc parallel DEFAULT(none) num_workers(5) vector_length(32)
-    ! !$acc loop independent gang 
-    ! do jg = 1,ng
-
         ! Simpler down-then-up method to compute fluxes
         call calc_fluxes_no_scattering_lwT(istartcol,iendcol, nlev, &
              &  trans_clearT(:,:,jg), source_up_clearT(:,:,jg), source_dn_clearT(:,:,jg), &
@@ -263,10 +249,8 @@ contains
         
         ! Ensure that clear-sky reflectance is zero since it may be
         ! used in cloudy-sky case
-! #ifndef _OPENACC
 !         ref_clear = 0.0_jprb
       ! end if
-! #endif
 
     end do ! jg
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! break the loop here !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -321,17 +305,12 @@ contains
         do jg=1,ng
           flux_up_clear(jg,jlev,jcol) = flux_up_clearT(jcol,jlev,jg)
           flux_dn_clear(jg,jlev,jcol) = flux_dn_clearT(jcol,jlev,jg)
-          ! source_up_clear(jg,jlev,jcol) = source_up_clearT(jcol,jlev,jg)
-          ! source_dn_clear(jg,jlev,jcol) = source_dn_clearT(jcol,jlev,jg)
-          ! trans_clear(jg,jlev,jcol) = trans_clearT(jcol,jlev,jg)
         end do
       end do
     end do
     do jcol = istartcol,iendcol
       do jlev=1,nlev
         do jg=1,ng
-          ! flux_up_clear(jg,jlev,jcol) = flux_up_clearT(jcol,jlev,jg)
-          ! flux_dn_clear(jg,jlev,jcol) = flux_dn_clearT(jcol,jlev,jg)
           source_up_clear(jg,jlev,jcol) = source_up_clearT(jcol,jlev,jg)
           source_dn_clear(jg,jlev,jcol) = source_dn_clearT(jcol,jlev,jg)
           trans_clear(jg,jlev,jcol) = trans_clearT(jcol,jlev,jg)

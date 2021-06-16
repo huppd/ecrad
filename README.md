@@ -245,3 +245,72 @@ the shortwave 3D radiative effect of clouds. J. Atmos. Sci., 76,
 Please email Robin Hogan <r.j.hogan@ecmwf.int> with any queries or bug
 fixes, but note that ECMWF does not commit to providing support to
 users of this software.
+
+## TO BENCHAMRK 
+Here, a little benachmark tutorial, that should work on TSA and has to be adapted on the specific platform.
+The steps vary slightly for CPU and GPU.
+Depending on your platform it might be easier to adapt the CPU or GPU benchmark.
+
+## Generate input file
+To have the multiple input files go to the practical folder
+  cd pracatical
+and run
+  python extend_input.py eraslice.nc 2500
+  python extend_input.py eraslice.nc 6000 
+  python extend_input.py eraslice.nc 10000
+to get the three ncol sized files for the used benchmark.
+## Benchmark CPU
+First the approriate modules have to be load, for tsa this can be done by calling a helper script in the main ecRad folder:
+ `. load_pgi.sh`
+
+After that, the ecrad can be compiled by:
+  make PROFILE=pgicpu
+
+For runing the benchmark, one has to change into the practiacl directory:
+  cd practical
+
+Make sure there is no 'omptiming.txt' file or it is empty.
+Then run the code multiple times by for example submitting the batch script:
+  sbatch cpu_timing.sh
+This might have to adapted to your platform.
+
+After, having run the code multiple times, you can call the script:
+  ./analalyze_omptiming.txt <output.txt>
+to consider the median and the median absolute deviation, which will be written to the <output.txt> file.
+
+# Changing ncol
+For that un/comment the right line in cpu_timing.sh script.
+
+# Changing ng
+For that un/comment the lines 58/59 in yoerrtm.F90.
+That means you have to rebuild.
+
+## Benchmark GPU
+First the approriate modules have to be load, for tsa this can be done by calling a helper script.
+In the main ecrad folder:
+ `. load_pgi.sh`
+
+If there is already a cpu or other build you should:
+  make clean
+
+After that, the ecrad can be compiled by:
+  make PROFILE=pgi
+
+For runing the benchmark, one has to change into the practiacl directory:
+  cd practical
+
+Make sure there is no 'omptiming.txt' file or it is empty.
+Then run the code multiple times by for example submitting the batch script:
+  sbatch gpu_timing.sh
+This might have to adapted to your platform.
+
+After, having run the code multiple times, you can call the script:
+  ./analalyze_omptiming.txt <output.txt>
+to consider the median and the median absolute deviation, which will be written to the <output.txt> file.
+
+# Changing ncol
+for that un/comment the right line in cpu_timing.sh
+Make sure nblocksize in config.nam is set accordingly.
+# Changing ng
+for that un/comment the lines 58/59 in yoerrtm.F90.
+That means you have to rebuild.
