@@ -260,11 +260,11 @@ To have the multiple input files go to the practical folder
   
 and run
 
-       `python extend_input.py eraslice.nc 2500`
+       python extend_input.py eraslice.nc 2500
        
-       `python extend_input.py eraslice.nc 6000` 
+       python extend_input.py eraslice.nc 6000 
        
-       `python extend_input.py eraslice.nc 10000`
+       python extend_input.py eraslice.nc 10000
        
 to get the three ncol sized files for the used benchmark.
 
