@@ -246,36 +246,52 @@ Please email Robin Hogan <r.j.hogan@ecmwf.int> with any queries or bug
 fixes, but note that ECMWF does not commit to providing support to
 users of this software.
 
+
+
 ## TO BENCHAMRK 
 Here, a little benachmark tutorial, that should work on TSA and has to be adapted on the specific platform.
 The steps vary slightly for CPU and GPU.
 Depending on your platform it might be easier to adapt the CPU or GPU benchmark.
 
-# Generate input file
+## Generate input file
 To have the multiple input files go to the practical folder
-  cd pracatical
+
+  `cd pracatical`
+  
 and run
-  python extend_input.py eraslice.nc 2500
-  python extend_input.py eraslice.nc 6000 
-  python extend_input.py eraslice.nc 10000
+
+       python extend_input.py eraslice.nc 2500
+       
+       python extend_input.py eraslice.nc 6000 
+       
+       python extend_input.py eraslice.nc 10000
+       
 to get the three ncol sized files for the used benchmark.
+
 ## Benchmark CPU
 First the approriate modules have to be load, for tsa this can be done by calling a helper script in the main ecRad folder:
+
  `. load_pgi.sh`
 
 After that, the ecrad can be compiled by:
-  make PROFILE=pgicpu
+
+  `make PROFILE=pgicpu`
 
 For runing the benchmark, one has to change into the practiacl directory:
-  cd practical
+
+  `cd practical`
 
 Make sure there is no 'omptiming.txt' file or it is empty.
 Then run the code multiple times by for example submitting the batch script:
-  sbatch cpu_timing.sh
+
+  `sbatch cpu_timing.sh`
+  
 This might have to adapted to your platform.
 
 After, having run the code multiple times, you can call the script:
-  ./analyze_omptiming.txt <output.txt>
+
+  `./analyze_omptiming.txt <output.txt>`
+  
 to consider the median and the median absolute deviation, which will be written to the <output.txt> file.
 
 # Changing ncol
@@ -291,21 +307,28 @@ In the main ecrad folder:
  `. load_pgi.sh`
 
 If there is already a cpu or other build you should:
-  make clean
+
+  `make clean`
 
 After that, the ecrad can be compiled by:
-  make PROFILE=pgi
+
+  `make PROFILE=pgi`
 
 For runing the benchmark, one has to change into the practiacl directory:
-  cd practical
+
+  `cd practical`
 
 Make sure there is no 'omptiming.txt' file or it is empty.
 Then run the code multiple times by for example submitting the batch script:
-  sbatch gpu_timing.sh
+
+  `sbatch gpu_timing.sh`
+  
 This might have to adapted to your platform.
 
 After, having run the code multiple times, you can call the script:
-  ./analyze_omptiming.txt <output.txt>
+
+  `./analyze_omptiming.txt <output.txt>`
+  
 to consider the median and the median absolute deviation, which will be written to the <output.txt> file.
 
 # Changing ncol
