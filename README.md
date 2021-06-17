@@ -275,7 +275,7 @@ Then run the code multiple times by for example submitting the batch script:
 This might have to adapted to your platform.
 
 After, having run the code multiple times, you can call the script:
-  ./analalyze_omptiming.txt <output.txt>
+  ./analyze_omptiming.txt <output.txt>
 to consider the median and the median absolute deviation, which will be written to the <output.txt> file.
 
 # Changing ncol
@@ -305,7 +305,7 @@ Then run the code multiple times by for example submitting the batch script:
 This might have to adapted to your platform.
 
 After, having run the code multiple times, you can call the script:
-  ./analalyze_omptiming.txt <output.txt>
+  ./analyze_omptiming.txt <output.txt>
 to consider the median and the median absolute deviation, which will be written to the <output.txt> file.
 
 # Changing ncol
