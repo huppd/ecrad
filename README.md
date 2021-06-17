@@ -290,7 +290,7 @@ This might have to adapted to your platform.
 
 After, having run the code multiple times, you can call the script:
 
-  `./analalyze_omptiming.txt <output.txt>`
+  `./analyze_omptiming.txt <output.txt>`
   
 to consider the median and the median absolute deviation, which will be written to the <output.txt> file.
 
@@ -327,7 +327,7 @@ This might have to adapted to your platform.
 
 After, having run the code multiple times, you can call the script:
 
-  `./analalyze_omptiming.txt <output.txt>`
+  `./analyze_omptiming.txt <output.txt>`
   
 to consider the median and the median absolute deviation, which will be written to the <output.txt> file.
 
