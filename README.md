@@ -290,7 +290,7 @@ This might have to adapted to your platform.
 Also the ´nblocksize´ in ´config.nam´ should be choosen to match to the platform.
 After, having run the code multiple times, you can call the script:
 
-  `./analyze_omptiming.txt <output.txt>`
+  `./analyze_omptiming.py <output.txt>`
   
 to consider the median and the median absolute deviation, which will be written to the <output.txt> file.
 
